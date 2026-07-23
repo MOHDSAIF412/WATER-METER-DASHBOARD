@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3PhTech · Water Meter Command Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --bg:#eef1f5; --bg2:#e7ecf2; --panel:#ffffff; --panel2:#f4f7fa; --line:#e1e6ed;
+    --ok:#3AAA35; --warn:#e8871e; --bad:#e03e4e; --muted:#6b7a8d;
+    --text:#243444; --accent:#2f7fbf; --accent2:#3AAA35; --brand:#3AAA35; --blue:#2f7fbf; --yellow:#d09a00; --purple:#8a5cd0;
+    --glass:rgba(255,255,255,0.55); --glass2:rgba(255,255,255,0.4); --glassbrd:rgba(255,255,255,0.75); --glasshi:rgba(255,255,255,0.9); --glasssh:0 10px 30px rgba(40,60,90,0.14); --blur:blur(22px) saturate(180%);
+  }
+  body.night{
+    --bg:#0b0c0e; --bg2:#111217; --panel:#181b1f; --panel2:#212429; --line:#2b2f36;
+    --ok:#56c451; --warn:#ff780a; --bad:#f2495c; --muted:#8e9297;
+    --text:#dcdde0; --accent:#5794f2; --brand:#56c451; --blue:#5794f2; --yellow:#fade2a;
+    --glass:rgba(34,40,52,0.5); --glass2:rgba(28,33,44,0.42); --glassbrd:rgba(255,255,255,0.13); --glasshi:rgba(255,255,255,0.16); --glasssh:0 10px 30px rgba(0,0,0,0.45); --blur:blur(22px) saturate(160%);
+  }
+  body.night .mcard:hover{background:rgba(50,58,74,0.5)}
+  body.night .mcard.sel{background:rgba(40,62,92,0.55)}
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter','Segoe UI',system-ui,sans-serif}
+  body{color:var(--text);overflow:hidden;height:100vh;display:flex;flex-direction:column;
+    background:
+      radial-gradient(1000px 560px at 84% -10%, rgba(58,170,53,0.12), transparent 60%),
+      radial-gradient(900px 620px at 4% 110%, rgba(47,127,191,0.12), transparent 55%),
+      linear-gradient(135deg,#eef2f8 0%,#e3e9f3 100%);}
+  body.night{
+    background:
+      radial-gradient(1000px 560px at 84% -10%, rgba(58,170,53,0.16), transparent 60%),
+      radial-gradient(900px 620px at 4% 110%, rgba(47,127,191,0.16), transparent 55%),
+      linear-gradient(135deg,#0c0f16 0%,#090b10 100%);}
+  header{display:flex;align-items:center;gap:14px;padding:11px 18px;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--glassbrd);box-shadow:inset 0 1px 0 var(--glasshi);z-index:6}
+  header .brandmark{display:flex;align-items:center;gap:10px}
+  header .brandmark svg{width:34px;height:34px;display:block}
+  header .brandtext{line-height:1}
+  header .brandtext .bn{font-size:15px;font-weight:800;letter-spacing:3px;color:var(--brand)}
+  header .brandtext .bc{font-size:8px;letter-spacing:1.5px;color:var(--muted);margin-top:2px}
+  header .divider{width:1px;height:30px;background:var(--line);margin:0 4px}
+  header h1{font-size:15px;font-weight:600;letter-spacing:.3px}
+  header .sub{font-size:11px;color:var(--muted)}
+  /* stat row (Grafana stat panels) */
+  #statrow{display:flex;gap:10px;padding:11px 12px;background:transparent}
+  .kpi{flex:1;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:16px;padding:11px 15px;position:relative;overflow:hidden;min-width:0;box-shadow:var(--glasssh), inset 0 1px 0 var(--glasshi)}
+  .kpi .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  .kpi .v{font-weight:800;line-height:1.05;margin-top:4px;letter-spacing:-.5px}
+  .kpi .spark{position:absolute;left:0;right:0;bottom:0;height:26px;opacity:.55}
+  .kpi.ok .v{color:var(--ok)} .kpi.warn .v{color:var(--warn)} .kpi.bad .v{color:var(--bad)} .kpi.tot .v{color:var(--blue)} .kpi.wat .v{color:var(--accent2)} .kpi.alm .v{color:var(--yellow)} .kpi.cost .v{color:var(--accent2)} .kpi.lk .v{color:var(--warn)}
+  .kpi .v{font-size:30px} .kpi.cost .v,.kpi.wat .v{font-size:24px}
+  .kpi.cost .spark{background:linear-gradient(180deg,transparent,rgba(58,170,53,.26))}
+  .kpi.lk .spark{background:linear-gradient(180deg,transparent,rgba(232,135,30,.26))}
+  .kpi.ok .spark{background:linear-gradient(180deg,transparent,rgba(86,196,81,.30))}
+  .kpi.warn .spark{background:linear-gradient(180deg,transparent,rgba(255,120,10,.30))}
+  .kpi.bad .spark{background:linear-gradient(180deg,transparent,rgba(242,73,92,.30))}
+  .kpi.tot .spark{background:linear-gradient(180deg,transparent,rgba(87,148,242,.30))}
+  .kpi.wat .spark{background:linear-gradient(180deg,transparent,rgba(58,170,53,.30))}
+  .kpi.alm .spark{background:linear-gradient(180deg,transparent,rgba(250,222,42,.28))}
+  #conn{font-size:11px;padding:5px 12px;border-radius:20px;border:1px solid var(--glassbrd);background:var(--glass2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);color:var(--muted);white-space:nowrap;cursor:default;font-weight:600}
+  #conn.live{color:var(--ok);border-color:var(--ok)} #conn.snap{color:var(--warn);border-color:var(--warn)} #conn.err{color:var(--bad);border-color:var(--bad)}
+  main{flex:1;display:flex;min-height:0}
+  #scene{flex:1;position:relative}
+  #scene canvas{display:block}
+  #sidebar{width:340px;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-left:1px solid var(--glassbrd);box-shadow:inset 1px 0 0 var(--glasshi);display:flex;flex-direction:column}
+  #sidebar h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:12px 16px 6px;display:flex;justify-content:space-between}
+  #search{margin:0 12px 8px;padding:9px 12px;background:var(--bg2);border:1px solid var(--line);border-radius:4px;color:var(--text);font-size:13px;outline:none;transition:.15s}
+  #search:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(87,148,242,0.18)}
+  #meters{flex:1;overflow-y:auto;padding:0 8px 12px}
+  #meters::-webkit-scrollbar{width:6px} #meters::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  .mcard{background:var(--glass2);border:1px solid var(--glassbrd);border-left:3px solid var(--ok);border-radius:12px;padding:10px 12px;margin:7px;cursor:pointer;transition:.16s;box-shadow:0 4px 14px rgba(30,50,80,.08), inset 0 1px 0 var(--glasshi)}
+  .mcard:hover{border-color:var(--accent);transform:translateX(-2px)}
+  .mcard.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent), 0 6px 18px rgba(30,50,80,.12)}
+  .mcard.warn{border-left-color:var(--warn)} .mcard.bad{border-left-color:var(--bad)}
+  .mcard .row1{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .mcard .name{font-weight:600;font-size:13.5px;line-height:1.2}
+  .mcard .type{font-size:10px;color:var(--muted)}
+  .badge{font-size:9.5px;padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:.4px;white-space:nowrap}
+  .badge.ok{background:rgba(86,196,81,.16);color:var(--ok)}
+  .badge.warn{background:rgba(255,120,10,.16);color:var(--warn)}
+  .badge.bad{background:rgba(242,73,92,.16);color:var(--bad)}
+  .mcard .row2{display:flex;gap:12px;margin-top:7px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+  .mcard .row2 b{color:var(--text);font-weight:600}
+  .mcard .actions{margin-top:8px;display:none}
+  .mcard.sel .actions{display:flex;gap:8px}
+  .btn{font-size:11px;padding:6px 11px;border-radius:4px;border:1px solid var(--accent);background:rgba(87,148,242,.14);color:var(--accent);cursor:pointer}
+  .btn:hover{background:rgba(87,148,242,.28)}
+  .btn.g{border-color:var(--ok);color:var(--ok);background:rgba(86,196,81,.14)}
+  #legend{position:absolute;bottom:14px;left:14px;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:14px;padding:11px 15px;font-size:11px;box-shadow:var(--glasssh), inset 0 1px 0 var(--glasshi)}
+  #legend div{display:flex;align-items:center;gap:8px;margin:3px 0}
+  .dot{width:10px;height:10px;border-radius:50%}
+  #tip{position:absolute;pointer-events:none;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:12px;padding:9px 13px;font-size:12px;display:none;z-index:10;max-width:250px;line-height:1.5;box-shadow:var(--glasssh)}
+  #hint{position:absolute;top:12px;left:14px;font-size:11px;color:var(--muted);background:var(--glass2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);padding:6px 11px;border-radius:12px}
+  #authbox{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:18px;padding:22px 24px;width:360px;display:none;z-index:20;text-align:center;box-shadow:var(--glasssh), inset 0 1px 0 var(--glasshi)}
+  #authbox input{width:100%;margin:8px 0;padding:9px 12px;background:var(--bg2);border:1px solid var(--line);border-radius:4px;color:var(--text);font-size:13px}
+  #authbox .btn{width:100%;padding:10px;margin-top:6px}
+  .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #themeBtn{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:15px;cursor:pointer;color:var(--text)}
+  #themeBtn:hover{border-color:var(--accent)}
+  #alarmBtn{position:relative;background:var(--glass2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:12px;padding:7px 13px;font-size:16px;cursor:pointer;color:var(--text);box-shadow:inset 0 1px 0 var(--glasshi)}
+  #alarmBtn:hover{border-color:var(--bad)}
+  #alarmBtn.has{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
+  #alarmBtn span{position:absolute;top:-6px;right:-6px;background:var(--bad);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+  #alarmBtn.none span{background:var(--muted)}
+  #alarmDrawer{position:absolute;top:0;right:-400px;width:380px;height:100%;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-left:1px solid var(--glassbrd);display:flex;flex-direction:column;transition:right .28s ease;z-index:15;box-shadow:-16px 0 40px rgba(20,40,70,.28)}
+  #alarmDrawer.open{right:0}
+  .adh{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line);font-size:15px;font-weight:600}
+  #adSub{font-size:11px;color:var(--muted);font-weight:400}
+  #adClose{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer}
+  #adClose:hover{color:var(--text)}
+  #adFilters{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .af{font-size:11px;padding:5px 11px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);cursor:pointer}
+  .af.sel{border-color:var(--accent);color:var(--accent)}
+  #alarmList{flex:1;overflow-y:auto;padding:8px 10px}
+  #alarmList::-webkit-scrollbar{width:6px} #alarmList::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  .acard{background:var(--panel2);border:1px solid var(--line);border-left:4px solid var(--bad);border-radius:9px;padding:10px 12px;margin:6px}
+  .acard.CRITICAL{border-left-color:#ff3355} .acard.MAJOR{border-left-color:#ff7a3d} .acard.MINOR{border-left-color:#f5b83d} .acard.WARNING{border-left-color:#f5d33d}
+  .acard .arow{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .acard .adev{font-weight:600;font-size:13px}
+  .acard .asev{font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:9px;letter-spacing:.4px}
+  .asev.CRITICAL{background:rgba(255,51,85,.18);color:#ff3355} .asev.MAJOR{background:rgba(255,122,61,.18);color:#ff7a3d} .asev.MINOR{background:rgba(245,184,61,.18);color:#f5b83d} .asev.WARNING{background:rgba(245,211,61,.18);color:#f5d33d}
+  .acard .atitle{font-size:12px;margin-top:4px}
+  .acard .ainfo{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
+  .acard .atime{font-size:10.5px;color:var(--muted);margin-top:5px}
+  .aempty{text-align:center;color:var(--muted);font-size:12px;padding:30px 12px}
+  .mcard .alarmpip{display:inline-block;margin-left:6px;font-size:10px;color:var(--bad)}
+  /* meter detail panel */
+  #detail{position:absolute;left:14px;bottom:14px;width:420px;max-width:calc(100% - 28px);background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:18px;padding:15px 17px;box-shadow:var(--glasssh), inset 0 1px 0 var(--glasshi);display:none;z-index:12}
+  #detail.open{display:block;animation:rise .22s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .dh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  #dName{font-size:15px;font-weight:600}
+  #dClose{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer} #dClose:hover{color:var(--text)}
+  #dStats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  #dStats .s{background:var(--bg2);border:1px solid var(--line);border-radius:4px;padding:8px 10px}
+  #dStats .s .sv{font-size:16px;font-weight:700} #dStats .s .sl{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  #dChartTitle{font-size:11px;color:var(--muted);margin-bottom:4px}
+  #dChart{height:120px;position:relative}
+  #dChart svg{width:100%;height:120px;display:block}
+  #dChart .cempty{color:var(--muted);font-size:12px;padding:40px 0;text-align:center}
+  #dChart .spin{width:26px;height:26px;margin:44px auto}
+  .ctip{fill:var(--text);font-size:9px}
+  #dActions{margin-top:12px}
+  #dLeak{margin-bottom:10px}
+  #dLeak .lkhead{background:rgba(232,135,30,.12);border:1px solid rgba(232,135,30,.32);border-radius:7px;padding:9px 11px;font-size:12px;color:var(--warn);line-height:1.5}
+  #dLeak .lkhead b{color:var(--text)}
+  #dLeak .lkstats{display:flex;gap:8px;margin-top:8px}
+  #dLeak .lkstats .s{flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+  #dLeak .lkstats .sv{font-size:14px;font-weight:700} #dLeak .lkstats .sl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  #dLeak .lknight{margin-top:9px}
+  #dLeak .lntitle{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+  #dLeak svg{width:100%;height:70px;display:block}
+  #dLeak .lnlist{margin-top:7px;max-height:96px;overflow:auto;font-size:11px}
+  #dLeak .lnrow{display:flex;justify-content:space-between;padding:3px 4px;border-bottom:1px solid var(--line)}
+  #dLeak .lnrow b{color:var(--warn)}
+  #dLeak .lkspin{width:22px;height:22px;margin:14px auto}
+  .kpi.lk{cursor:pointer} .kpi.lk:hover{border-color:var(--warn)}
+  #statrow .kpi.lk.active{box-shadow:inset 0 0 0 1px var(--warn)}
+  /* analytics strip (Grafana panels) */
+  #analytics{display:flex;gap:10px;padding:10px 12px;background:transparent;border-top:1px solid var(--glassbrd);height:206px;overflow-x:auto}
+  #pZones{width:272px;flex:none} #pTrend{width:224px;flex:none} #pConsume{min-width:300px}
+  #zonesSvg{width:100%;height:100%;display:block}
+  .z-lbl{fill:var(--muted);font-size:9px} .z-val{fill:var(--text);font-size:9px;font-weight:600}
+  #trendBody{display:flex;flex-direction:column;justify-content:center;gap:12px}
+  .tr{display:flex;align-items:center;gap:10px}
+  .tr .trl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;width:64px}
+  .tr .trv{font-size:18px;font-weight:700}
+  .tr .trd{font-size:12px;font-weight:700;padding:2px 7px;border-radius:10px}
+  .trd.up{color:var(--bad);background:rgba(224,62,78,.12)} .trd.down{color:var(--ok);background:rgba(58,170,53,.12)} .trd.flat{color:var(--muted);background:var(--panel2)}
+  .tr .trc{font-size:10px;color:var(--muted)}
+  .panel{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:16px;display:flex;flex-direction:column;min-width:0;box-shadow:var(--glasssh), inset 0 1px 0 var(--glasshi)}
+  .panel .ph{font-size:11.5px;color:var(--text);padding:8px 14px;border-bottom:1px solid var(--glassbrd);font-weight:700;letter-spacing:.3px}
+  .panel .pb{flex:1;padding:8px 12px;min-height:0;position:relative}
+  #pStatus{width:250px;flex:none} #pStatus .pb{display:flex;align-items:center;gap:14px}
+  #donut{width:120px;height:120px;flex:none}
+  #donutLegend{font-size:11px;flex:1}
+  #donutLegend .dl{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:5px 0}
+  #donutLegend .dl .k{display:flex;align-items:center;gap:7px;color:var(--muted)}
+  #donutLegend .dl b{color:var(--text)}
+  #pConsume{flex:1} #pConsume .pb{overflow:hidden}
+  #barsSvg{width:100%;height:100%;display:block}
+  .gbar-lbl{fill:var(--muted);font-size:9px} .gbar-val{fill:var(--text);font-size:9px;font-weight:600}
+  #analytics .cempty{color:var(--muted);font-size:12px;display:flex;align-items:center;justify-content:center;height:100%}
+  #analytics .panel{cursor:zoom-in;transition:border-color .15s} #analytics .panel:hover{border-color:var(--accent)}
+  .panel .ph::after{content:'⤢';float:right;color:var(--muted);font-size:12px;opacity:.6}
+  /* panel zoom modal */
+  #panelModal{position:fixed;inset:0;background:rgba(8,14,24,.62);display:none;align-items:center;justify-content:center;z-index:50}
+  #panelModal.open{display:flex}
+  #pmCard{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:22px;width:min(1040px,93vw);height:min(700px,88vh);display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.5), inset 0 1px 0 var(--glasshi)}
+  #pmHead{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);font-size:16px;font-weight:600}
+  #pmClose{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer} #pmClose:hover{color:var(--text)}
+  #pmBody{flex:1;display:flex;min-height:0;padding:6px}
+  .panel.enlarged{flex:1;width:auto!important;min-width:0;border:none;box-shadow:none;border-radius:0;cursor:default}
+  .panel.enlarged .ph{display:none}
+  .panel.enlarged .pb{padding:20px 26px;overflow:auto}
+  .panel.enlarged #donut{width:340px!important;height:340px!important}
+  .panel.enlarged #gauge{height:min(52vh,360px)!important}
+  .panel.enlarged #pStatus,.panel.enlarged.pStatus{}
+  .panel.enlarged #donutLegend{font-size:19px} .panel.enlarged #donutLegend .dl{margin:12px 0}
+  .panel.enlarged #connStats .cs-v{font-size:42px} .panel.enlarged #connStats .cs-l{font-size:14px}
+  .panel.enlarged .tr .trv{font-size:46px} .panel.enlarged .tr .trd{font-size:22px} .panel.enlarged .tr .trl{font-size:15px;width:110px} .panel.enlarged .tr .trc{font-size:14px}
+  .panel.enlarged #trendBody{gap:26px}
+  .panel.enlarged svg{height:100%}
+  .panel.enlarged .z-lbl,.panel.enlarged .z-val{font-size:12px} .panel.enlarged .gbar-lbl,.panel.enlarged .gbar-val{font-size:12px}
+  #pConn{width:230px;flex:none}
+  #pConn .pb{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px 12px 8px}
+  #gauge{width:100%;height:104px;display:block}
+  #connStats{display:flex;align-items:center;width:100%;border-top:1px solid var(--line);padding-top:7px}
+  #connStats .cs{flex:1;text-align:center}
+  #connStats .cs-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  #connStats .cs-v{font-size:20px;font-weight:700;color:var(--text);margin-top:1px}
+  #connStats .cs-div{flex:none;width:1px;height:32px;background:var(--line)}
+  #themeBtn,#reportBtn{background:var(--glass2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:12px;padding:7px 13px;font-size:14px;font-weight:600;cursor:pointer;color:var(--text);box-shadow:inset 0 1px 0 var(--glasshi)}
+  #reportBtn:hover,#themeBtn:hover{border-color:var(--accent)}
+  /* report picker modal */
+  #reportModal{position:fixed;inset:0;background:rgba(10,20,35,.55);display:none;z-index:40;align-items:center;justify-content:center}
+  #reportModal.open{display:flex}
+  #reportCard{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:20px;width:470px;max-width:92vw;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(20,40,70,.4), inset 0 1px 0 var(--glasshi)}
+  #reportCard h3{padding:15px 18px;border-bottom:1px solid var(--line);font-size:15px;display:flex;justify-content:space-between;align-items:center;margin:0}
+  #reportCard .rc-body{padding:14px 18px;overflow:auto}
+  .rmeta{display:flex;gap:10px;margin-bottom:12px;align-items:center}
+  .rmeta label{font-size:12px;color:var(--muted)}
+  .rmeta select{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg2);color:var(--text);font-size:13px}
+  .rlisthead{display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;color:var(--muted)}
+  .rselall{font-size:12px;color:var(--accent);cursor:pointer;background:none;border:none;padding:0}
+  #rlist{border:1px solid var(--line);border-radius:6px;max-height:300px;overflow:auto;padding:4px}
+  .rrow{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:4px;font-size:13px;cursor:pointer}
+  .rrow:hover{background:var(--panel2)}
+  .rrow input{width:15px;height:15px;accent-color:var(--brand)}
+  .rrow .rt{font-size:10px;color:var(--muted);margin-left:auto}
+  #reportCard .rc-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:space-between;align-items:center}
+  #rCount{font-size:12px;color:var(--muted)}
+  #rClose{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <div class="brandmark">
+    <svg viewBox="0 0 100 100" aria-label="Operon">
+      <circle cx="50" cy="50" r="37" fill="none" stroke="#3AAA35" stroke-width="8.5" stroke-linecap="round" stroke-dasharray="207 25" transform="rotate(118 50 50)"/>
+      <circle cx="40.5" cy="70" r="9.5" fill="#3AAA35"/>
+    </svg>
+    <div class="brandtext"><div class="bn">OPERON</div><div class="bc">AN EDGENTA COMPANY</div></div>
+  </div>
+  <div class="divider"></div>
+  <div>
+    <h1>Water Meter Command Center</h1>
+    <div class="sub">3PhTech · TCT · Abu Dhabi</div>
+  </div>
+  <span id="conn" style="margin-left:auto">Connecting…</span>
+  <button id="reportBtn" title="Generate report">📄 Report</button>
+  <button id="themeBtn" title="Toggle day / night">🌙</button>
+  <button id="alarmBtn" title="Active alarms">🔔<span id="alarmCount">0</span></button>
+</header>
+<div id="reportModal">
+  <div id="reportCard">
+    <h3>Generate Consumption Report <button id="rClose" title="Close">✕</button></h3>
+    <div class="rc-body">
+      <div class="rmeta">
+        <label>Period</label>
+        <select id="rRange">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
+      <div class="rlisthead"><span>Select meters to include</span><button class="rselall" id="rSelAll">Select all</button></div>
+      <div id="rlist"></div>
+    </div>
+    <div class="rc-foot">
+      <span id="rCount">0 selected</span>
+      <button class="btn g" id="rGen">Generate report</button>
+    </div>
+  </div>
+</div>
+<div id="statrow">
+  <div class="kpi tot"><div class="l">Total Meters</div><div class="v" id="kTot">–</div><div class="spark"></div></div>
+  <div class="kpi ok"><div class="l">Flowing</div><div class="v" id="kOk">–</div><div class="spark"></div></div>
+  <div class="kpi warn"><div class="l">No Flow</div><div class="v" id="kWarn">–</div><div class="spark"></div></div>
+  <div class="kpi bad"><div class="l">Offline</div><div class="v" id="kBad">–</div><div class="spark"></div></div>
+  <div class="kpi wat"><div class="l">m³ Consumed Today</div><div class="v" id="kDay">–</div><div class="spark"></div></div>
+  <div class="kpi cost"><div class="l">Cost Today</div><div class="v" id="kCost">–</div><div class="spark"></div></div>
+  <div class="kpi lk"><div class="l">Leak Watch</div><div class="v" id="kLeak">–</div><div class="spark"></div></div>
+  <div class="kpi alm"><div class="l">Active Alarms</div><div class="v" id="kAlm">–</div><div class="spark"></div></div>
+</div>
+<main>
+  <div id="scene">
+    <div id="hint">Drag to orbit • Scroll to zoom • Click a meter to focus & report</div>
+    <div id="legend">
+      <div><span class="dot" style="background:#56c451"></span> Flowing — water moving</div>
+      <div><span class="dot" style="background:#ff780a"></span> Connected, no flow (0)</div>
+      <div><span class="dot" style="background:#f2495c"></span> Offline — no reading</div>
+    </div>
+    <div id="tip"></div>
+    <div id="detail">
+      <div class="dh">
+        <div><span id="dName">—</span> <span id="dBadge" class="badge"></span></div>
+        <button id="dClose" title="Close">✕</button>
+      </div>
+      <div id="dStats"></div>
+      <div id="dLeak"></div>
+      <div id="dChartWrap"><div id="dChartTitle">30-day daily consumption (m³)</div><div id="dChart"></div></div>
+      <div id="dActions"><button class="btn g" id="dReport">📄 Generate report</button></div>
+    </div>
+    <div id="authbox">
+      <h3 style="margin-bottom:8px">Connect to live data</h3>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;text-align:left;line-height:1.6">
+        Paste your platform session token (lasts ~24h, saved locally so you only do this once a day):
+        <ol style="margin:6px 0 0 16px;padding:0">
+          <li>Open <b>platform.3phtechsolutions.com</b> and sign in</li>
+          <li>Press <b>F12</b> → <b>Application</b> tab → <b>Local Storage</b></li>
+          <li>Copy the value of <b>accessToken</b> (without the quotes)</li>
+          <li>Paste it below</li>
+        </ol>
+      </div>
+      <input id="tokIn" placeholder="Paste accessToken…">
+      <button class="btn" onclick="useManualToken()">Connect</button>
+    </div>
+  </div>
+  <div id="sidebar">
+    <h2><span>Meters</span><span id="upd" style="text-transform:none;letter-spacing:0"></span></h2>
+    <input id="search" placeholder="Search meter…">
+    <div id="meters"><div class="spin" style="margin-top:40px"></div></div>
+  </div>
+  <div id="alarmDrawer">
+    <div class="adh">
+      <div><span id="adTitle">Active Alarms</span> <span id="adSub"></span></div>
+      <button id="adClose" title="Close">✕</button>
+    </div>
+    <div id="adFilters">
+      <button class="af sel" data-f="all">All</button>
+      <button class="af" data-f="CRITICAL">Critical</button>
+      <button class="af" data-f="MAJOR">Major</button>
+      <button class="af" data-f="MINOR">Minor</button>
+    </div>
+    <div id="alarmList"></div>
+  </div>
+</main>
+<div id="analytics">
+  <div class="panel" id="pConn">
+    <div class="ph">Device Connection Status</div>
+    <div class="pb">
+      <svg id="gauge" viewBox="28 22 144 150"></svg>
+      <div id="connStats">
+        <div class="cs"><div class="cs-l">Connected</div><div class="cs-v" id="connYes">–</div></div>
+        <div class="cs-div"></div>
+        <div class="cs"><div class="cs-l">Disconnected</div><div class="cs-v" id="connNo">–</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel" id="pStatus">
+    <div class="ph">Meter Status Distribution</div>
+    <div class="pb"><svg id="donut" viewBox="0 0 100 100"></svg><div id="donutLegend"></div></div>
+  </div>
+  <div class="panel" id="pZones">
+    <div class="ph">Consumption by Zone — Today</div>
+    <div class="pb"><svg id="zonesSvg" preserveAspectRatio="xMidYMid meet"></svg></div>
+  </div>
+  <div class="panel" id="pTrend">
+    <div class="ph">Consumption Trend</div>
+    <div class="pb" id="trendBody"></div>
+  </div>
+  <div class="panel" id="pConsume">
+    <div class="ph">Top Consumers — Consumption Today (m³)</div>
+    <div class="pb"><svg id="barsSvg" preserveAspectRatio="xMidYMid meet"></svg></div>
+  </div>
+</div>
+<div id="panelModal">
+  <div id="pmCard">
+    <div id="pmHead"><span id="pmTitle"></span><button id="pmClose" title="Close">✕</button></div>
+    <div id="pmBody"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   3PhTech Water Meter Command Center
+   Live data via platform.3phtechsolutions.com  (CORS: *, no cookies)
+   ============================================================ */
+const CONFIG = {
+  API: 'https://platform.3phtechsolutions.com/data/api/v1',
+  ORG: 'd48c65a0-bfa5-11f0-a573-a314e8899d81',
+  GRP: '0dd25986-bfa7-11f0-a573-a314e8899d81',
+  // The platform encrypts the password inside its own JS before login,
+  // so the dashboard authenticates with your session token instead.
+  // You paste it once; it's saved locally and reused until it expires (~24h).
+  TOKEN_KEY: 'wm_token',
+  POLL_MS: 30000,
+  REPORT_DAYS: 45,
+  // ===== EDIT THIS: your water tariff to show consumption as cost =====
+  TARIFF: 10.41,           // AED per m³ (= AED 10.41 per 1,000 L) — TCT water rate
+  CURRENCY: 'AED',
+  // ===== leak detection: min night flow (1–5am) above this = continuous-flow candidate =====
+  LEAK_MIN: 1.0,           // m³/h (flow meters) or m³/interval (water meters)
+  LEAK_DAYS: 7,
+  // ===== spike / anomaly: today above (factor × 30-day average) = spike =====
+  SPIKE_FACTOR: 1.8,
+  SPIKE_MIN: 5             // ignore meters using less than this m³/day
+};
+/* keys of interest */
+const K = { TOTAL:949, FLOWCONS:969, FLOWRATE:347, DAILY:1041 };
+
+let token = (function(){ try{ return localStorage.getItem(CONFIG.TOKEN_KEY)||null; }catch(e){ return null; } })();
+
+/* ---------- live snapshot embedded so real meters show instantly ---------- */
+const SNAPSHOT = {
+  ts: 1784700903270,
+  meters: [
+    {id:'ce6f99cc-bfa9-11f0-a573-a314e8899d81',name:'36A Pump Station',type:'Flow Meter',active:true,total:139126.91,flow:0,daily:9.23,seen:1784699782000},
+    {id:'026bde34-bfaa-11f0-a573-a314e8899d81',name:'36B Pump Station',type:'Flow Meter',active:true,total:4927.99,flow:0,daily:176.04,seen:1784699984000},
+    {id:'1495a0f4-bfaa-11f0-a573-a314e8899d81',name:'Golf Academy',type:'Flow Meter',active:true,total:62833.62,flow:0,daily:200.53,seen:1784699615000},
+    {id:'ef3b31a2-bfa9-11f0-a573-a314e8899d81',name:'Golf Course Pump Station',type:'Flow Meter',active:true,total:18221.30,flow:0,daily:0.10,seen:1784699848000},
+    {id:'e26f12d6-bfa9-11f0-a573-a314e8899d81',name:'Racetrack Pump Station',type:'Flow Meter',active:true,total:71718.66,flow:5.41,daily:51.71,seen:1784699899000},
+    {id:'c9cb950a-bfaa-11f0-a573-a314e8899d81',name:'30 stables',type:'Water Meter',active:true,total:6872.42,flow:15.19,daily:30.03,seen:1784664001000},
+    {id:'a2f0147e-bfaa-11f0-a573-a314e8899d81',name:'30 stables accommodation',type:'Water Meter',active:true,total:27.70,flow:0.03,daily:0.05,seen:1784682001000},
+    {id:'07735910-bfab-11f0-a573-a314e8899d81',name:'30 stables irrigation',type:'Water Meter',active:true,total:20068.05,flow:59.15,daily:145.44,seen:1784678401000},
+    {id:'e5b5562a-bfaa-11f0-a573-a314e8899d81',name:'Chiller yard water',type:'Water Meter',active:true,total:15653.56,flow:89.24,daily:23.25,seen:1784689202000},
+    {id:'6f8f2ebc-bfaa-11f0-a573-a314e8899d81',name:'Drivers’ accommodation',type:'Water Meter',active:true,total:5732.38,flow:10.84,daily:19.38,seen:1784664002000},
+    {id:'d6fcbe5c-bfaa-11f0-a573-a314e8899d81',name:'Labor accommodation',type:'Water Meter',active:true,total:5602.60,flow:14.93,daily:23.63,seen:1784660402000},
+    {id:'19aec39e-bfab-11f0-a573-a314e8899d81',name:'Old grandstand',type:'Water Meter',active:true,total:4028.16,flow:2.65,daily:19.25,seen:1784682002000},
+    {id:'af177986-bfaa-11f0-a573-a314e8899d81',name:'Old riding school',type:'Water Meter',active:true,total:1302.40,flow:4.67,daily:1.46,seen:1784664001000},
+    {id:'80681050-bfaa-11f0-a573-a314e8899d81',name:'Old riding school ac stables',type:'Water Meter',active:true,total:5984.27,flow:26.48,daily:11.06,seen:1784678402000},
+    {id:'bb7edf16-bfaa-11f0-a573-a314e8899d81',name:'Oncourace stables',type:'Water Meter',active:true,total:282.83,flow:0.20,daily:0.41,seen:1784667601000},
+    {id:'9545aadc-bfaa-11f0-a573-a314e8899d81',name:'Store accommodation',type:'Water Meter',active:true,total:4281.09,flow:4.11,daily:4.11,seen:1784613601000},
+    {id:'f7779d64-bfaa-11f0-a573-a314e8899d81',name:'The arcade commercial water',type:'Water Meter',active:true,total:9452.80,flow:34.46,daily:83.78,seen:1784664002000}
+  ]
+};
+
+/* ================= DATA LAYER ================= */
+class AuthError extends Error{}
+async function sql(query){
+  if(!token) throw new AuthError('no token');
+  const r = await fetch(CONFIG.API+'/dynamicapi/read',{method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+    body:JSON.stringify({query})});
+  if(r.status===401||r.status===403){ token=null; try{localStorage.removeItem(CONFIG.TOKEN_KEY);}catch(e){} throw new AuthError('token expired'); }
+  if(!r.ok) throw new Error('sql '+r.status);
+  const j = await r.json(); return j.data||[];
+}
+
+async function fetchLive(){
+  if(!token) throw new AuthError('no token');
+  // connectivity (latest heartbeat per device)
+  const status = await sql(`
+    select distinct on (d.id) d.id, d.name, d.type, s.active, s.ts as sts
+    from device_status_history s join devices d on d.id=s.device
+    where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+    order by d.id, s.ts desc`);
+  // latest readings
+  const reads = await sql(`
+    select l.device, l.key, l.num_value, l.ts
+    from ts_data_latest l join devices d on d.id=l.device
+    where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+      and l.key in (${K.TOTAL},${K.FLOWCONS},${K.FLOWRATE},${K.DAILY})`);
+  // device connectivity across ALL devices (incl. gateway) for the gauge
+  try{
+    const conn = await sql(`
+      select distinct on (d.id) d.id, s.active
+      from device_status_history s join devices d on d.id=s.device
+      where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+      order by d.id, s.ts desc`);
+    let c=0,dn=0; conn.forEach(r=>{ r.active?c++:dn++; });
+    connStatus={connected:c,disconnected:dn};
+  }catch(e){}
+  // minimum night flow (1–5am Dubai) over LEAK_DAYS → continuous-flow / leak candidates
+  const nightMin={};
+  try{
+    const nf=await sql(`
+      select l.device, round(min(l.num_value)::numeric,3) as mn, count(*) as n
+      from ts_data l join devices d on d.id=l.device
+      where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+        and l.key in (${K.FLOWRATE},${K.FLOWCONS})
+        and l.ts >= ${Date.now()-CONFIG.LEAK_DAYS*86400000}
+        and extract(hour from to_timestamp(l.ts/1000) at time zone 'Asia/Dubai') between 1 and 5
+      group by l.device`);
+    nf.forEach(r=>{ nightMin[r.device]={mn:Number(r.mn), n:Number(r.n)}; });
+  }catch(e){}
+  const byDev = {};
+  reads.forEach(r=>{ (byDev[r.device]=byDev[r.device]||{})[r.key]=Number(r.num_value); if(!byDev[r.device]._ts||r.ts>byDev[r.device]._ts)byDev[r.device]._ts=Number(r.ts); });
+  return status.map(s=>{
+    const rv = byDev[s.id]||{};
+    const isFlow = s.type==='Flow Meter';
+    const flow = isFlow ? (rv[K.FLOWRATE]??0) : (rv[K.FLOWCONS]??0);
+    const nm = nightMin[s.id];
+    return { id:s.id, name:s.name.trim(), type:s.type, active:s.active,
+      total: rv[K.TOTAL]??0, flow, daily: rv[K.DAILY]??0, seen: rv._ts||Number(s.sts),
+      nightMin: nm?nm.mn:null, nightN: nm?nm.n:0 };
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+/* ---------- alarms ---------- */
+let alarms=[]; let alarmFilter='all';
+async function fetchAlarms(){
+  return sql(`
+    select a.id, d.name as device, a.severity, a.title, a.status, a.created_time, a.info
+    from alarms a join devices d on d.id=a.device
+    where d.org='${CONFIG.ORG}' and a.status in ('ACTIVE','ACKNOWLEDGED')
+    order by a.created_time desc limit 60`).then(rows=>rows.map(r=>({
+      id:r.id, device:(r.device||'').trim(), severity:(r.severity||'MINOR').toUpperCase(),
+      title:r.title, status:r.status, info:r.info, ts:Number(r.created_time)
+    })));
+}
+const SEV_RANK={CRITICAL:0,MAJOR:1,MINOR:2,WARNING:3};
+function renderAlarms(){
+  const list=document.getElementById('alarmList');
+  const btn=document.getElementById('alarmBtn'), cnt=document.getElementById('alarmCount');
+  const n=alarms.length; cnt.textContent=n;
+  const kAlm=document.getElementById('kAlm'); if(kAlm) kAlm.textContent=n;
+  btn.className = n>0 ? 'has' : 'none';
+  document.getElementById('adSub').textContent = n?`${n} uncleared`:'all clear';
+  const shown = alarms.filter(a=>alarmFilter==='all'||a.severity===alarmFilter)
+                      .sort((a,b)=>(SEV_RANK[a.severity]??9)-(SEV_RANK[b.severity]??9)||b.ts-a.ts);
+  if(!shown.length){ list.innerHTML='<div class="aempty">No alarms in this filter 🎉</div>'; return; }
+  list.innerHTML = shown.map(a=>`
+    <div class="acard ${a.severity}">
+      <div class="arow"><span class="adev">${a.device}</span><span class="asev ${a.severity}">${a.severity}</span></div>
+      <div class="atitle">${a.title}${a.status==='ACKNOWLEDGED'?' <span style="color:var(--muted)">· ack’d</span>':''}</div>
+      ${a.info?`<div class="ainfo">${a.info}</div>`:''}
+      <div class="atime">${new Date(a.ts).toLocaleString()} · ${ago(a.ts)}</div>
+    </div>`).join('');
+}
+// set of device names with active alarms (to flag meters)
+function alarmedDevices(){ return new Set(alarms.map(a=>a.device)); }
+
+/* ---------- per-meter CSV report ---------- */
+async function downloadReport(m){
+  try{
+    if(!token){ alert('Paste your session token first to pull reports.'); showAuth(true); return; }
+    const since = Date.now() - CONFIG.REPORT_DAYS*86400000;
+    const rows = await sql(`
+      select ts, key, num_value from ts_data
+      where device='${m.id}' and key in (${K.DAILY},${K.TOTAL}) and ts >= ${since}
+      order by ts asc`);
+    const map = {};
+    rows.forEach(r=>{ const d=new Date(Number(r.ts)).toISOString().slice(0,10);
+      map[d]=map[d]||{}; map[d][r.key]=Number(r.num_value); });
+    let csv='Date,Daily Consumption (m³),Cumulative Total (m³)\n';
+    Object.keys(map).sort().forEach(d=>{ csv+=`${d},${map[d][K.DAILY]??''},${map[d][K.TOTAL]??''}\n`; });
+    const blob=new Blob([csv],{type:'text/csv'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`report_${m.name.replace(/[^a-z0-9]+/gi,'_')}_${CONFIG.REPORT_DAYS}d.csv`; a.click();
+  }catch(e){ alert('Report failed: '+e.message+'\\nToken may have expired — reload.'); }
+}
+
+/* ================= corporate multi-meter report ================= */
+const RPAL=['#2f7fbf','#3AAA35','#e8871e','#8a5cd0','#e03e4e','#17a2b8','#c99a2b','#5c6bc0','#26a69a','#ec407a','#7e57c2','#66bb6a'];
+const rModal=document.getElementById('reportModal');
+function openReportModal(preselect){
+  const list=document.getElementById('rlist'); list.innerHTML='';
+  meters.forEach((m,i)=>{
+    const row=document.createElement('label'); row.className='rrow';
+    row.innerHTML=`<input type="checkbox" value="${m.id}" ${preselect===m.id?'checked':''}><span>${m.name}</span><span class="rt">${m.type}</span>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('input').forEach(cb=>cb.addEventListener('change',updateRCount));
+  document.getElementById('rSelAll').textContent='Select all';
+  updateRCount(); rModal.classList.add('open');
+}
+function updateRCount(){ document.getElementById('rCount').textContent=rModal.querySelectorAll('#rlist input:checked').length+' selected'; }
+document.getElementById('reportBtn').onclick=()=>{ if(meters.length) openReportModal(); };
+document.getElementById('rClose').onclick=()=>rModal.classList.remove('open');
+rModal.addEventListener('click',e=>{ if(e.target===rModal) rModal.classList.remove('open'); });
+document.getElementById('rSelAll').onclick=()=>{ const cbs=[...rModal.querySelectorAll('#rlist input')]; const all=cbs.every(c=>c.checked); cbs.forEach(c=>c.checked=!all); document.getElementById('rSelAll').textContent=all?'Select all':'Clear all'; updateRCount(); };
+document.getElementById('rGen').onclick=async()=>{
+  const ids=[...rModal.querySelectorAll('#rlist input:checked')].map(c=>c.value);
+  if(!ids.length){ alert('Select at least one meter.'); return; }
+  if(!token){ alert('Connect (paste token) first to pull report data.'); rModal.classList.remove('open'); showAuth(true); return; }
+  const days=+document.getElementById('rRange').value;
+  const btn=document.getElementById('rGen'); btn.textContent='Generating…'; btn.disabled=true;
+  try{
+    const items=[];
+    for(const id of ids){ const m=meters.find(x=>x.id===id); items.push({m,series:await fetchDailyFor(id,days)}); }
+    let monthly=[];
+    try{ const DT="to_timestamp(l.ts/1000) at time zone 'Asia/Dubai'";
+      monthly=await sql(`select mon, round(sum(daily)::numeric,0) as total from (
+        select to_char(day,'YYYY-MM') as mon, daily from (
+          select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
+          from ts_data l join devices d on d.id=l.device
+          where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-160*86400000}
+          group by day, l.device) a) b group by mon order by mon desc limit 5`);
+    }catch(e){}
+    openReportWindow(items,days,monthly); rModal.classList.remove('open');
+  }catch(e){ alert('Report failed: '+e.message); }
+  btn.textContent='Generate report'; btn.disabled=false;
+};
+async function fetchDailyFor(id,days){
+  const since=Date.now()-days*86400000;
+  const rows=await sql(`select ts,num_value from ts_data where device='${id}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
+  const byDay={}; rows.forEach(r=>{ byDay[new Date(Number(r.ts)).toISOString().slice(0,10)]=Number(r.num_value); });
+  return Object.entries(byDay).map(([d,v])=>({d,v})).sort((a,b)=>a.d.localeCompare(b.d));
+}
+function rBar(series,color){
+  const W=720,H=210,pl=48,pr=12,pt=14,pb=34, iw=W-pl-pr, ih=H-pt-pb;
+  if(!series.length) return '<div style="color:#889;padding:16px;font-size:12px">No data in this range.</div>';
+  const max=Math.max(...series.map(s=>s.v),0.001), n=series.length, bw=iw/n;
+  let grid='',bars='';
+  for(let g=0;g<=4;g++){ const y=pt+ih-(g/4)*ih; grid+=`<line x1="${pl}" y1="${y.toFixed(1)}" x2="${W-pr}" y2="${y.toFixed(1)}" stroke="#e6ebf1"/><text x="${pl-6}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="9" fill="#8899aa">${(max*g/4).toFixed(0)}</text>`; }
+  series.forEach((s,i)=>{ const h=Math.max(1,(s.v/max)*ih), x=pl+i*bw, y=pt+ih-h; bars+=`<rect x="${(x+bw*0.15).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw*0.7).toFixed(1)}" height="${h.toFixed(1)}" fill="${color}"><title>${s.d}: ${s.v.toFixed(2)} m³</title></rect>`; });
+  const xl=i=>`<text x="${(pl+i*bw+bw/2).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="#8899aa">${series[i].d.slice(5)}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:720px">${grid}${bars}${xl(0)}${xl(n-1)}${n>4?xl(Math.floor(n/2)):''}</svg>`;
+}
+function rTotalsBar(stats){
+  const W=720,H=Math.max(70,stats.length*30+16),pl=180,pr=60, iw=W-pl-pr, max=Math.max(0.001,...stats.map(s=>s.total));
+  let rows='';
+  stats.forEach((s,i)=>{ const y=8+i*30, w=Math.max(2,(s.total/max)*iw); rows+=`<text x="${pl-8}" y="${y+13}" text-anchor="end" font-size="11" fill="#334">${s.name.slice(0,28)}</text><rect x="${pl}" y="${y}" width="${w.toFixed(1)}" height="18" rx="2" fill="${RPAL[i%RPAL.length]}"/><text x="${(pl+w+5).toFixed(1)}" y="${y+13}" font-size="10" fill="#334">${s.total.toFixed(1)}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${rows}</svg>`;
+}
+function rCompareLines(items){
+  const W=720,H=260,pl=48,pr=130,pt=14,pb=34, iw=W-pl-pr, ih=H-pt-pb;
+  const dates=[...new Set([].concat(...items.map(it=>it.series.map(s=>s.d))))].sort();
+  if(!dates.length) return '';
+  const idx=Object.fromEntries(dates.map((d,i)=>[d,i])), n=dates.length;
+  const max=Math.max(0.001,...items.flatMap(it=>it.series.map(s=>s.v)));
+  const X=i=> pl+(n<=1?iw/2:(i/(n-1))*iw), Y=v=> pt+ih-(v/max)*ih;
+  let grid='',lines='',legend='';
+  for(let g=0;g<=4;g++){ const y=pt+ih-(g/4)*ih; grid+=`<line x1="${pl}" y1="${y.toFixed(1)}" x2="${W-pr}" y2="${y.toFixed(1)}" stroke="#e6ebf1"/><text x="${pl-6}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="9" fill="#8899aa">${(max*g/4).toFixed(0)}</text>`; }
+  items.forEach((it,k)=>{ const c=RPAL[k%RPAL.length];
+    lines+=`<polyline points="${it.series.map(s=>X(idx[s.d]).toFixed(1)+','+Y(s.v).toFixed(1)).join(' ')}" fill="none" stroke="${c}" stroke-width="2"/>`;
+    legend+=`<g transform="translate(${W-pr+10},${pt+6+k*16})"><rect width="10" height="10" rx="2" fill="${c}"/><text x="15" y="9" font-size="9" fill="#445">${it.m.name.slice(0,17)}</text></g>`;
+  });
+  const xl=i=>`<text x="${X(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="#8899aa">${dates[i].slice(5)}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${grid}${lines}${xl(0)}${xl(n-1)}${n>4?xl(Math.floor(n/2)):''}${legend}</svg>`;
+}
+function openReportWindow(items,days,monthly){
+  const now=new Date(), fmt=d=>d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
+  const stats=items.map(it=>{ const s=it.series, total=s.reduce((a,x)=>a+x.v,0), peak=s.reduce((a,x)=>x.v>a.v?x:a,{v:-1,d:'—'}); return {name:it.m.name,type:it.m.type,total,avg:s.length?total/s.length:0,peak:peak.v<0?0:peak.v,peakDate:peak.d,cur:it.m.total}; });
+  const grand=stats.reduce((a,s)=>a+s.total,0), multi=items.length>1;
+  // monthly billing (whole site)
+  const billSec=(monthly&&monthly.length)?`<section class="sec"><h2>Monthly Billing — Whole Site</h2>
+    <table><thead><tr><th>Month</th><th class="r">Consumption (m³)</th><th class="r">Cost (${CONFIG.CURRENCY})</th></tr></thead><tbody>
+    ${monthly.map(r=>`<tr><td>${r.mon}</td><td class="r">${Number(r.total).toLocaleString()}</td><td class="r">${(Number(r.total)*CONFIG.TARIFF).toLocaleString(undefined,{maximumFractionDigits:0})}</td></tr>`).join('')}</tbody></table>
+    <p style="font-size:10px;color:#90a0b0;margin-top:6px">Whole-site totals across all meters. The most recent month is to-date.</p></section>`:'';
+  // zone breakdown of selected meters
+  const zmap={}; items.forEach((it,k)=>{ const zn=zoneOf(it.m.name); (zmap[zn]=zmap[zn]||{m3:0,n:0}); zmap[zn].m3+=stats[k].total; zmap[zn].n++; });
+  const zoneSec=multi?`<section class="sec"><h2>Consumption by Zone</h2>
+    <table><thead><tr><th>Zone</th><th class="r">Meters</th><th class="r">Total (m³)</th><th class="r">Cost (${CONFIG.CURRENCY})</th></tr></thead><tbody>
+    ${ZONE_ORDER.filter(z=>zmap[z]).map(z=>`<tr><td>${z}</td><td class="r">${zmap[z].n}</td><td class="r">${zmap[z].m3.toFixed(1)}</td><td class="r">${(zmap[z].m3*CONFIG.TARIFF).toLocaleString(undefined,{maximumFractionDigits:0})}</td></tr>`).join('')}</tbody></table></section>`:'';
+  // leak candidates among selected
+  const leakItems=items.filter(it=>leakOf(it.m));
+  const leakSec=leakItems.length?`<section class="sec"><h2>💧 Leak Watch — Continuous-Flow Candidates</h2>
+    <p style="font-size:12px;color:#66788c;margin:0 0 8px">Water kept moving during 1–5am over the last ${CONFIG.LEAK_DAYS} days — investigate for a leak, stuck valve, or running fixture.</p>
+    <table><thead><tr><th>Meter</th><th>Type</th><th class="r">Overnight baseline (m³)</th></tr></thead><tbody>
+    ${leakItems.map(it=>`<tr><td>${it.m.name}</td><td>${it.m.type}</td><td class="r">${it.m.nightMin}</td></tr>`).join('')}</tbody></table></section>`:'';
+  const logo=`<svg viewBox="0 0 100 100" width="46" height="46"><circle cx="50" cy="50" r="37" fill="none" stroke="#3AAA35" stroke-width="8.5" stroke-linecap="round" stroke-dasharray="207 25" transform="rotate(118 50 50)"/><circle cx="40.5" cy="70" r="9.5" fill="#3AAA35"/></svg>`;
+  const compare = multi ? `<section class="sec"><h2>Comparison Summary</h2>
+      <div class="cards"><div class="card"><div class="cl">Meters compared</div><div class="cv">${items.length}</div></div>
+      <div class="card"><div class="cl">Combined consumption</div><div class="cv">${grand.toFixed(1)} m³</div></div>
+      <div class="card"><div class="cl">Period</div><div class="cv">${days} days</div></div></div>
+      <table><thead><tr><th>Meter</th><th>Type</th><th class="r">Total (m³)</th><th class="r">Cost (${CONFIG.CURRENCY})</th><th class="r">Avg/day</th><th class="r">Peak (m³)</th><th>Peak date</th></tr></thead><tbody>
+      ${stats.slice().sort((a,b)=>b.total-a.total).map(s=>`<tr><td>${s.name}</td><td>${s.type}</td><td class="r">${s.total.toFixed(1)}</td><td class="r">${(s.total*CONFIG.TARIFF).toLocaleString(undefined,{maximumFractionDigits:0})}</td><td class="r">${s.avg.toFixed(2)}</td><td class="r">${s.peak.toFixed(2)}</td><td>${s.peakDate}</td></tr>`).join('')}
+      <tr style="font-weight:700;background:#f4f6f9"><td>TOTAL</td><td></td><td class="r">${grand.toFixed(1)}</td><td class="r">${(grand*CONFIG.TARIFF).toLocaleString(undefined,{maximumFractionDigits:0})}</td><td></td><td></td><td></td></tr></tbody></table>
+      <h3>Total consumption by meter</h3>${rTotalsBar(stats.slice().sort((a,b)=>b.total-a.total))}
+      <h3>Daily consumption trend</h3>${rCompareLines(items)}</section>` : '';
+  const sections=items.map((it,k)=>{ const s=stats[k]; const leak=leakOf(it.m); return `<section class="sec meter"><h2>${s.name} <span class="tag">${s.type}</span></h2>
+      <div class="cards"><div class="card"><div class="cl">Total this period</div><div class="cv">${s.total.toFixed(1)} m³</div></div>
+      <div class="card"><div class="cl">Cost this period</div><div class="cv" style="color:#3AAA35">${CONFIG.CURRENCY} ${(s.total*CONFIG.TARIFF).toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
+      <div class="card"><div class="cl">Avg / day</div><div class="cv">${s.avg.toFixed(2)} m³</div></div>
+      <div class="card"><div class="cl">Peak day</div><div class="cv">${s.peak.toFixed(1)} m³</div><div class="cs">${s.peakDate}</div></div>
+      <div class="card"><div class="cl">Lifetime total</div><div class="cv">${s.cur.toLocaleString(undefined,{maximumFractionDigits:0})} m³</div></div></div>
+      ${leak?`<div style="margin-top:10px;padding:8px 12px;background:#fff5ea;border:1px solid #f0c890;border-radius:6px;font-size:12px;color:#9a5b12">💧 <b>Possible continuous flow.</b> Water never dropped below ${it.m.nightMin} during 1–5am over the last ${CONFIG.LEAK_DAYS} days — investigate for a leak or stuck valve.</div>`:''}
+      <h3>Daily consumption (m³)</h3>${rBar(it.series,RPAL[k%RPAL.length])}
+      <table><thead><tr><th>Date</th><th class="r">Daily consumption (m³)</th></tr></thead><tbody>
+      ${it.series.map(x=>`<tr><td>${x.d}</td><td class="r">${x.v.toFixed(3)}</td></tr>`).join('')||'<tr><td colspan="2">No data in range</td></tr>'}</tbody></table></section>`; }).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>OPERON Water Consumption Report</title><style>
+    *{box-sizing:border-box} body{font-family:'Segoe UI',Arial,sans-serif;color:#243444;margin:0;background:#eef1f5}
+    .page{max-width:920px;margin:0 auto 40px}
+    header.rpt{display:flex;align-items:center;gap:14px;padding:22px 30px;background:#fff;border-bottom:3px solid #3AAA35}
+    header.rpt .bn{font-size:20px;font-weight:800;letter-spacing:3px;color:#3AAA35;line-height:1}
+    header.rpt .bc{font-size:9px;letter-spacing:1.5px;color:#8090a0;margin-top:2px}
+    header.rpt .rt{margin-left:auto;text-align:right}
+    header.rpt .rt .tt{font-size:18px;font-weight:700;color:#1c3350}
+    header.rpt .rt .ts{font-size:11px;color:#66788c}
+    .sub{padding:8px 30px;background:#e8eef4;font-size:12px;color:#54687c;display:flex;justify-content:space-between}
+    .sec{background:#fff;margin:18px 30px;padding:18px 22px;border:1px solid #e4e9ef;border-radius:8px}
+    h2{font-size:16px;margin:0 0 12px;color:#1c3350;border-left:4px solid #3AAA35;padding-left:9px}
+    h2 .tag{font-size:10px;background:#eef3f7;color:#66788c;padding:2px 8px;border-radius:10px;margin-left:6px;font-weight:400}
+    h3{font-size:11px;color:#66788c;margin:16px 0 6px;text-transform:uppercase;letter-spacing:.5px}
+    .cards{display:flex;gap:10px;flex-wrap:wrap}
+    .card{flex:1;min-width:120px;background:#f7f9fb;border:1px solid #e4e9ef;border-radius:6px;padding:10px 12px}
+    .cl{font-size:10px;color:#8090a0;text-transform:uppercase;letter-spacing:.4px}
+    .cv{font-size:19px;font-weight:700;color:#1c3350;margin-top:3px}
+    .cs{font-size:10px;color:#8090a0}
+    table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}
+    th,td{text-align:left;padding:6px 9px;border-bottom:1px solid #eef1f5}
+    th{background:#f4f6f9;color:#54687c;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+    .r{text-align:right}
+    footer{padding:16px 30px;font-size:10px;color:#90a0b0;text-align:center}
+    .toolbar{position:fixed;top:14px;right:14px}
+    .toolbar button{background:#3AAA35;color:#fff;border:none;padding:10px 18px;border-radius:6px;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+    @media print{ .toolbar{display:none} body{background:#fff} .sec{break-inside:avoid;page-break-inside:avoid;border:none;margin:12px 0} .sec.meter{page-break-before:always} .page{margin:0} .sub,.sec{margin-left:0;margin-right:0} @page{margin:12mm} }
+  </style></head><body>
+  <div class="toolbar"><button onclick="window.print()">🖨 Print / Save as PDF</button></div>
+  <div class="page">
+    <header class="rpt">${logo}<div><div class="bn">OPERON</div><div class="bc">AN EDGENTA COMPANY</div></div>
+      <div class="rt"><div class="tt">Water Consumption Report</div><div class="ts">3PhTech · TCT · Abu Dhabi</div></div></header>
+    <div class="sub"><span>Reporting period: last ${days} days</span><span>Generated ${fmt(now)} · ${now.toLocaleTimeString()}</span></div>
+    ${compare}${billSec}${zoneSec}${leakSec}${sections}
+    <footer>Generated by the OPERON Water Meter Command Center · Data source: 3PhTech platform · Auto-generated for internal use.</footer>
+  </div></body></html>`;
+  const w=window.open('','_blank');
+  if(!w){ alert('Please allow pop-ups for this page, then generate the report again.'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ---------- meter detail + 30-day trend chart ---------- */
+async function fetchDailySeries(id){
+  const since = Date.now() - 30*86400000;
+  const rows = await sql(`select ts, num_value from ts_data where device='${id}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
+  const byDay={};
+  rows.forEach(r=>{ byDay[new Date(Number(r.ts)).toISOString().slice(0,10)] = Number(r.num_value); });
+  return Object.entries(byDay).map(([d,v])=>({d,v})).sort((a,b)=>a.d.localeCompare(b.d));
+}
+function drawChart(series){
+  const el=document.getElementById('dChart');
+  if(!series.length){ el.innerHTML='<div class="cempty">No history in the last 30 days.</div>'; return; }
+  const W=390,H=120,pad={l:4,r:4,t:10,b:16};
+  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b;
+  const max=Math.max(...series.map(s=>s.v),0.001);
+  const n=series.length, bw=iw/n;
+  const grad='cg'+Math.random().toString(36).slice(2,7);
+  let bars='';
+  series.forEach((s,i)=>{
+    const h=Math.max(1,(s.v/max)*ih);
+    const x=pad.l+i*bw, y=pad.t+ih-h;
+    bars+=`<rect x="${(x+bw*0.14).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw*0.72).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="url(#${grad})"><title>${s.d}: ${s.v.toFixed(2)} m³</title></rect>`;
+  });
+  // axis labels: first, mid, last date + max value
+  const lbl=(i,txt,anchor)=>`<text x="${(pad.l+i*bw+bw/2).toFixed(1)}" y="${H-4}" class="ctip" text-anchor="${anchor}" fill="#8199bd">${txt}</text>`;
+  const fd=d=>d.slice(5);
+  const avg=(series.reduce((a,s)=>a+s.v,0)/n);
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <defs><linearGradient id="${grad}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#39e5cd"/><stop offset="1" stop-color="#4fa3ff"/></linearGradient></defs>
+    <line x1="${pad.l}" y1="${pad.t+ih}" x2="${W-pad.r}" y2="${pad.t+ih}" stroke="rgba(90,124,180,0.25)"/>
+    ${bars}
+    ${lbl(0,fd(series[0].d),'start')}
+    ${n>3?lbl(Math.floor(n/2),fd(series[Math.floor(n/2)].d),'middle'):''}
+    ${lbl(n-1,fd(series[n-1].d),'end')}
+    <text x="${W-pad.r}" y="9" class="ctip" text-anchor="end" fill="#8199bd">peak ${max.toFixed(1)} · avg ${avg.toFixed(1)} m³/d</text>
+  </svg>`;
+}
+async function openDetail(m){
+  const p=document.getElementById('detail'); p.classList.add('open');
+  document.getElementById('dName').textContent=m.name;
+  const st=statusOf(m); const b=document.getElementById('dBadge');
+  b.className='badge '+st; b.textContent=LABEL[st];
+  const leak=leakOf(m);
+  const bl=baselineMap[m.id];
+  document.getElementById('dStats').innerHTML=`
+    <div class="s"><div class="sv">${m.daily.toFixed(1)}</div><div class="sl">m³ today</div></div>
+    <div class="s"><div class="sv" style="color:var(--accent2)">${fmtCost(m.daily)}</div><div class="sl">cost today</div></div>
+    <div class="s"><div class="sv">${m.total.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="sl">m³ total</div></div>`
+    + (spikeOf(m)?`<div style="grid-column:1/-1;margin-top:2px;font-size:11.5px;color:var(--bad);background:rgba(224,62,78,.1);border:1px solid rgba(224,62,78,.3);border-radius:6px;padding:7px 10px">⚡ <b>Usage spike:</b> today's ${m.daily.toFixed(1)} m³ is <b>${spikeRatio(m).toFixed(1)}×</b> this meter's 30-day average${bl?` (${bl.toFixed(1)} m³/day)`:''}. Check for a burst or a tap left running.</div>`:'');
+  document.getElementById('dReport').onclick=()=>openReportModal(m.id);
+  const dLeak=document.getElementById('dLeak');
+  if(leak && token){ dLeak.innerHTML='<div class="lkhead">💧 Analysing night flow…<div class="lkspin spin"></div></div>'; renderLeakDetail(m,dLeak); }
+  else if(leak){ dLeak.innerHTML=`<div class="lkhead">💧 <b>Possible continuous flow.</b> Overnight baseline never dropped below <b>${m.nightMin} m³</b> (1–5am). Connect to see the timing detail.</div>`; }
+  else dLeak.innerHTML='';
+  const chart=document.getElementById('dChart'); chart.innerHTML='<div class="spin"></div>';
+  if(!token){ chart.innerHTML='<div class="cempty">Connect (paste token) to load history.</div>'; return; }
+  try{ drawChart(await fetchDailySeries(m.id)); }
+  catch(e){ chart.innerHTML='<div class="cempty">Could not load history — token may have expired.</div>'; }
+}
+async function fetchLeakDetail(m){
+  const since=Date.now()-CONFIG.LEAK_DAYS*86400000;
+  const key = m.type==='Flow Meter'?K.FLOWRATE:K.FLOWCONS;
+  const rows=await sql(`select ts,num_value from ts_data where device='${m.id}' and key=${key} and ts>=${since}
+    and extract(hour from to_timestamp(ts/1000) at time zone 'Asia/Dubai') between 1 and 5 order by ts asc`);
+  return rows.map(r=>({ts:Number(r.ts),v:Number(r.num_value)}));
+}
+async function renderLeakDetail(m,el){
+  let reads; try{ reads=await fetchLeakDetail(m); }catch(e){ el.innerHTML=`<div class="lkhead">💧 Possible continuous flow (baseline ${m.nightMin} m³). Timing detail unavailable — token may have expired.</div>`; return; }
+  if(!reads.length){ el.innerHTML=`<div class="lkhead">💧 Possible continuous flow (baseline ${m.nightMin} m³).</div>`; return; }
+  const nights=new Set(reads.map(r=>new Date(r.ts+4*3600000).toISOString().slice(0,10)));
+  const totalNight=reads.reduce((a,r)=>a+r.v,0);
+  const baseline=Math.min(...reads.map(r=>r.v));
+  const estDay=(totalNight/CONFIG.LEAK_DAYS);          // avg m³ consumed in the 1–5am window per day
+  // night bar chart
+  const W=380,H=70,n=reads.length,max=Math.max(...reads.map(r=>r.v),0.001),bw=W/n;
+  const bars=reads.map((r,i)=>{const h=Math.max(2,(r.v/max)*58),x=i*bw,y=64-h;const t=new Date(r.ts+4*3600000).toISOString().slice(5,16).replace('T',' ');return `<rect x="${(x+bw*0.12).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw*0.76).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="#e8871e"><title>${t} — ${r.v.toFixed(2)} m³</title></rect>`;}).join('');
+  const list=reads.slice().reverse().slice(0,8).map(r=>{const d=new Date(r.ts+4*3600000);return `<div class="lnrow"><span>${d.toISOString().slice(0,10)} · ${d.toISOString().slice(11,16)}</span><b>${r.v.toFixed(2)} m³</b></div>`;}).join('');
+  el.innerHTML=`
+    <div class="lkhead">💧 <b>Possible continuous flow.</b> Water was still moving during 1–5am on <b>${nights.size}</b> of the last ${CONFIG.LEAK_DAYS} nights — a leak, stuck valve, or running fixture.</div>
+    <div class="lkstats">
+      <div class="s"><div class="sv">${baseline.toFixed(1)} m³</div><div class="sl">Night baseline</div></div>
+      <div class="s"><div class="sv">${estDay.toFixed(1)} m³</div><div class="sl">Night use / day</div></div>
+      <div class="s"><div class="sv" style="color:var(--warn)">${fmtCost(estDay)}</div><div class="sl">Est. cost / day</div></div>
+    </div>
+    <div class="lknight"><div class="lntitle">Night-time flow (1–5am, last ${CONFIG.LEAK_DAYS} days) — hover bars for time</div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}</svg></div>
+    <div class="lnlist">${list}</div>`;
+}
+document.getElementById('dClose').onclick=()=>document.getElementById('detail').classList.remove('open');
+
+/* ================= STATUS LOGIC ================= */
+// bad  = not connected (no reading, no flow)  — user's "not working"
+// warn = connected but zero flow
+// ok   = connected and water moving
+function statusOf(m){
+  if(!m.active) return 'bad';
+  if((m.flow||0) <= 0) return 'warn';
+  return 'ok';
+}
+const LABEL={ok:'FLOWING',warn:'NO FLOW',bad:'OFFLINE'};
+const COL={ok:0x56c451,warn:0xff780a,bad:0xf2495c};
+const HEX={ok:'#56c451',warn:'#ff780a',bad:'#f2495c'};
+function leakOf(m){ return m.nightMin!=null && m.nightN>=3 && m.nightMin > CONFIG.LEAK_MIN; }
+function costOf(m3){ return (m3||0)*CONFIG.TARIFF; }
+function fmtCost(m3){ return CONFIG.CURRENCY+' '+costOf(m3).toLocaleString(undefined,{maximumFractionDigits:2}); }
+function fmtCost0(m3){ return CONFIG.CURRENCY+' '+costOf(m3).toLocaleString(undefined,{maximumFractionDigits:0}); }
+/* ---- spikes / zones / trends ---- */
+let baselineMap={}, trend={wk:null,lastWk:null,moMTD:null,lastMo:null};
+function spikeOf(m){ const b=baselineMap[m.id]; return b>0 && (m.daily||0) > Math.max(CONFIG.SPIKE_MIN, b*CONFIG.SPIKE_FACTOR); }
+function spikeRatio(m){ const b=baselineMap[m.id]; return b>0?((m.daily||0)/b):0; }
+const ZONE_ORDER=['Stables','Accommodation','Golf','Commercial','Pump Stations','Other'];
+const ZONE_COL={'Stables':'#3AAA35','Accommodation':'#2f7fbf','Golf':'#8a5cd0','Commercial':'#e8871e','Pump Stations':'#17a2b8','Other':'#8899aa'};
+function zoneOf(name){ const n=(name||'').toLowerCase();
+  if(n.includes('pump')) return 'Pump Stations';
+  if(n.includes('accommodation')) return 'Accommodation';
+  if(n.includes('stable')||n.includes('riding')||n.includes('oncourace')) return 'Stables';
+  if(n.includes('golf')) return 'Golf';
+  if(n.includes('arcade')||n.includes('commercial')) return 'Commercial';
+  return 'Other';
+}
+async function loadAnalytics(){
+  if(!token) return;
+  const ORG=CONFIG.ORG, DT="to_timestamp(l.ts/1000) at time zone 'Asia/Dubai'";
+  try{
+    const base=await sql(`select device as id, round(avg(daily)::numeric,2) as avg30 from (
+      select l.device, date_trunc('day',${DT})::date as day, max(l.num_value) as daily
+      from ts_data l join devices d on d.id=l.device
+      where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-30*86400000}
+      group by l.device, day) x group by device`);
+    baselineMap={}; base.forEach(r=>baselineMap[r.id]=Number(r.avg30));
+  }catch(e){}
+  try{
+    const wk=await sql(`select wk, round(sum(daily)::numeric,0) as total from (
+      select date_trunc('week', day)::date as wk, daily from (
+        select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
+        from ts_data l join devices d on d.id=l.device
+        where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-28*86400000}
+        group by day, l.device) a) b group by wk order by wk desc limit 3`);
+    const mo=await sql(`select mon, round(sum(daily)::numeric,0) as total from (
+      select to_char(day,'YYYY-MM') as mon, daily from (
+        select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
+        from ts_data l join devices d on d.id=l.device
+        where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-95*86400000}
+        group by day, l.device) a) b group by mon order by mon desc limit 2`);
+    trend.wk = wk[1]?Number(wk[1].total):null; trend.lastWk = wk[2]?Number(wk[2].total):null;
+    trend.moMTD = mo[0]?Number(mo[0].total):null; trend.lastMo = mo[1]?Number(mo[1].total):null;
+  }catch(e){}
+  renderUI(meters); renderCharts(meters); renderTrend();
+}
+
+/* ================= 3D SCENE ================= */
+const sceneEl=document.getElementById('scene');
+const scene=new THREE.Scene();
+let THEME=(()=>{try{return localStorage.getItem('wm_theme')||'day';}catch(e){return 'day';}})();
+const T3={
+  day:  { bg:0xe9eef4, near:95, far:240, grid:[0xc2cddb,0xd8dfe9], gridOp:0.7,  bubble:0x2f7fbf, labelBg:'rgba(255,255,255,0.96)', labelTx:'#243444' },
+  night:{ bg:0x0b1018, near:95, far:250, grid:[0x2a3550,0x1b2336], gridOp:0.65, bubble:0xffffff, labelBg:'rgba(18,26,42,0.94)',   labelTx:'#eaf2ff' }
+};
+document.body.classList.toggle('night', THEME==='night');
+scene.background=new THREE.Color(T3[THEME].bg);
+scene.fog=new THREE.Fog(T3[THEME].bg,T3[THEME].near,T3[THEME].far);
+const camera=new THREE.PerspectiveCamera(52,1,0.1,600);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+sceneEl.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff,0.85));
+const dl=new THREE.DirectionalLight(0xffffff,0.85); dl.position.set(30,50,25); scene.add(dl);
+const dl2=new THREE.DirectionalLight(0x88b0e0,0.45); dl2.position.set(-40,15,-25); scene.add(dl2);
+let gridHelper=new THREE.GridHelper(200,60,T3[THEME].grid[0],T3[THEME].grid[1]); gridHelper.material.opacity=T3[THEME].gridOp; gridHelper.material.transparent=true; scene.add(gridHelper);
+
+let camTheta=0.85,camPhi=1.0,camR=90,camTarget=new THREE.Vector3(0,3,0),camTargetGoal=camTarget.clone(),camRGoal=90;
+function updateCam(){
+  camTarget.lerp(camTargetGoal,0.08); camR+=(camRGoal-camR)*0.08;
+  camera.position.set(camTarget.x+camR*Math.sin(camPhi)*Math.cos(camTheta),
+    camTarget.y+camR*Math.cos(camPhi), camTarget.z+camR*Math.sin(camPhi)*Math.sin(camTheta));
+  camera.lookAt(camTarget);
+}
+let dragging=false,px=0,py=0,moved=0;
+renderer.domElement.addEventListener('mousedown',e=>{dragging=true;px=e.clientX;py=e.clientY;moved=0});
+addEventListener('mouseup',()=>dragging=false);
+addEventListener('mousemove',e=>{ if(!dragging)return;
+  moved+=Math.abs(e.clientX-px)+Math.abs(e.clientY-py);
+  camTheta+=(e.clientX-px)*0.006; camPhi=Math.max(0.2,Math.min(1.45,camPhi+(e.clientY-py)*0.005));
+  px=e.clientX;py=e.clientY; });
+renderer.domElement.addEventListener('wheel',e=>{camRGoal=Math.max(18,Math.min(150,camRGoal+e.deltaY*0.06));e.preventDefault()},{passive:false});
+
+const pipeMat=c=>new THREE.MeshStandardMaterial({color:c,metalness:.6,roughness:.32});
+function tube(points,r,mat){
+  const curve=new THREE.CatmullRomCurve3(points);
+  const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,Math.max(20,points.length*8),r,12,false),mat);
+  mesh.userData.curve=curve; return mesh;
+}
+function makeLabel(text){
+  const c=document.createElement('canvas');c.width=300;c.height=64;
+  const x=c.getContext('2d');x.fillStyle=T3[THEME].labelBg;
+  x.beginPath();x.roundRect(0,0,300,64,14);x.fill();
+  x.strokeStyle='#3AAA35';x.lineWidth=2.5;x.beginPath();x.roundRect(1.5,1.5,297,61,14);x.stroke();
+  x.fillStyle=T3[THEME].labelTx;x.font='600 26px Segoe UI';x.textAlign='center';x.textBaseline='middle';
+  const t=text.length>22?text.slice(0,21)+'…':text; x.fillText(t,150,33);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true}));
+  s.scale.set(9,1.9,1); return s;
+}
+
+/* ---- realistic flowing-water pipes ---- */
+function makeWaterTexture(){
+  const c=document.createElement('canvas'); c.width=256; c.height=32;
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,32);
+  g.addColorStop(0,'#8fd0f7'); g.addColorStop(0.5,'#2f8fd0'); g.addColorStop(1,'#175f9a');
+  x.fillStyle=g; x.fillRect(0,0,256,32);
+  for(let i=0;i<8;i++){ const px=Math.random()*256, w=6+Math.random()*16;
+    const lg=x.createLinearGradient(px-w,0,px+w,0);
+    lg.addColorStop(0,'rgba(255,255,255,0)'); lg.addColorStop(0.5,'rgba(235,250,255,0.6)'); lg.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=lg; x.fillRect(px-w,0,w*2,32); }
+  const t=new THREE.CanvasTexture(c); t.wrapS=THREE.RepeatWrapping; t.wrapT=THREE.RepeatWrapping; return t;
+}
+const WATER_TEX=makeWaterTexture();
+const waterTubes=[];
+function waterPipe(points,outerR,status,speed){
+  const grp=new THREE.Group();
+  const curve=new THREE.CatmullRomCurve3(points);
+  const segs=Math.max(28,points.length*11);
+  const shellCol=status==='bad'?0xf0cccf:0xdcecf7;
+  const shell=new THREE.Mesh(new THREE.TubeGeometry(curve,segs,outerR,16,false),
+    new THREE.MeshStandardMaterial({color:shellCol,transparent:true,opacity:0.28,roughness:0.06,metalness:0.0,side:THREE.DoubleSide,depthWrite:false}));
+  grp.add(shell);
+  if(status!=='bad'){
+    const reps=Math.max(2,Math.round(curve.getLength()/6));
+    const tex=WATER_TEX.clone(); tex.needsUpdate=true; tex.wrapS=THREE.RepeatWrapping; tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(reps,1);
+    const flowing=status==='ok';
+    const core=new THREE.Mesh(new THREE.TubeGeometry(curve,segs,outerR*0.60,14,false),
+      new THREE.MeshStandardMaterial({map:tex,color:flowing?0xcdeeff:0xa7bccb,transparent:true,opacity:0.96,roughness:0.18,metalness:0.0,emissive:0x0d3f63,emissiveIntensity:flowing?0.28:0.05}));
+    grp.add(core);
+    waterTubes.push({tex,speed:flowing?speed:0});
+  }
+  grp.userData.curve=curve;
+  return {grp,curve};
+}
+
+let root=null; const flows=[]; const nodeMap=new Map(); let meters=[];
+function buildScene(ms){
+  if(root){ scene.remove(root); }
+  flows.forEach(f=>scene.remove(f.pts));         // clear old bubbles
+  root=new THREE.Group(); flows.length=0; waterTubes.length=0; nodeMap.clear();
+  const N=ms.length;
+  const trunkLen=Math.max(60,N*7);
+  const trunkPts=[new THREE.Vector3(-trunkLen/2-10,1.4,0),new THREE.Vector3(trunkLen/2+10,1.4,0)];
+  const tp=waterPipe(trunkPts,1.05,'ok',0.11); root.add(tp.grp);
+  flows.push(makeFlow(tp.curve,70,T3[THEME].bubble,0.32,0.11));
+  // source tank
+  const tank=new THREE.Mesh(new THREE.CylinderGeometry(3.6,3.6,8,26),pipeMat(0x2f4f77));
+  tank.position.set(-trunkLen/2-11,5,0); root.add(tank);
+  const cap=new THREE.Mesh(new THREE.CylinderGeometry(3.75,3.75,0.6,26),pipeMat(0x3aa4ff));
+  cap.position.set(-trunkLen/2-11,9,0); root.add(cap);
+  const srcLbl=makeLabel('SOURCE / GATEWAY'); srcLbl.position.set(-trunkLen/2-11,12,0); root.add(srcLbl);
+
+  ms.forEach((m,i)=>{
+    const st=statusOf(m);
+    const x=-trunkLen/2+(i+0.5)*(trunkLen/N);
+    const side=i%2===0?1:-1;
+    const g=new THREE.Group();
+    const branchPts=[
+      new THREE.Vector3(x,1.4,0),
+      new THREE.Vector3(x,1.4,side*6),
+      new THREE.Vector3(x,1.4,side*12),
+      new THREE.Vector3(x,3.6,side*16)
+    ];
+    const spd=0.11+Math.min(0.30,(m.flow||1)/200);
+    const bp=waterPipe(branchPts,0.52,st,spd); g.add(bp.grp);
+    const branch={userData:{curve:bp.curve}};
+    // valve joint on trunk
+    const joint=new THREE.Mesh(new THREE.SphereGeometry(0.85,16,16),pipeMat(0x33517a));
+    joint.position.set(x,1.4,0); g.add(joint);
+    // meter housing
+    const body=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,1.3,22),pipeMat(0x24435f));
+    body.rotation.x=Math.PI/2; body.position.set(x,3.6,side*18); g.add(body);
+    const face=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,1.45,22),
+      new THREE.MeshStandardMaterial({color:COL[st],emissive:COL[st],emissiveIntensity:.55}));
+    face.rotation.x=Math.PI/2; face.position.set(x,3.6,side*18);
+    face.userData.meterId=m.id; body.userData.meterId=m.id; g.add(face);
+    const beacon=new THREE.Mesh(new THREE.SphereGeometry(0.5,16,16),
+      new THREE.MeshStandardMaterial({color:COL[st],emissive:COL[st],emissiveIntensity:1}));
+    beacon.position.set(x,6.1,side*18); beacon.userData.meterId=m.id; g.add(beacon);
+    const mLbl=makeLabel(m.name); mLbl.position.set(x,8,side*18); g.add(mLbl);
+    if(st==='ok'){
+      flows.push(makeFlow(branch.userData.curve,16,T3[THEME].bubble,0.16,spd));
+    }
+    g.userData={meter:m,status:st,beacon};
+    root.add(g);
+    nodeMap.set(m.id,{x,side});
+  });
+  scene.add(root);
+}
+
+function makeFlow(curve,count,color,size,speed){
+  const geo=new THREE.BufferGeometry();
+  const pos=new Float32Array(count*3);
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const pts=new THREE.Points(geo,new THREE.PointsMaterial({color,size,transparent:true,opacity:.95}));
+  scene.add(pts);
+  const offs=new Float32Array(count); for(let i=0;i<count;i++)offs[i]=Math.random();
+  const f={curve,pts,offs,speed,t:0,dead:false,update(dt){
+    this.t+=dt*this.speed; const p=this.pts.geometry.attributes.position.array;
+    for(let i=0;i<count;i++){const u=(this.offs[i]+this.t)%1;const v=this.curve.getPointAt(u);
+      p[i*3]=v.x;p[i*3+1]=v.y;p[i*3+2]=v.z;}
+    this.pts.geometry.attributes.position.needsUpdate=true;
+  }};
+  return f;
+}
+
+/* picking */
+const ray=new THREE.Raycaster(),mouse=new THREE.Vector2();
+const tip=document.getElementById('tip');
+renderer.domElement.addEventListener('click',e=>{ if(moved>6)return; const id=pick(e); if(id)focusMeter(id,true); });
+renderer.domElement.addEventListener('mousemove',e=>{
+  const id=pick(e);
+  if(id){const m=meters.find(x=>x.id===id);const st=statusOf(m);const r=sceneEl.getBoundingClientRect();
+    tip.style.display='block';tip.style.left=(e.clientX-r.left+14)+'px';tip.style.top=(e.clientY-r.top+8)+'px';
+    tip.innerHTML=`<b>${m.name}</b><br><span style="color:${HEX[st]}">${LABEL[st]}</span> · ${m.type}<br>Flow: <b>${fmtFlow(m)}</b><br>Total: <b>${m.total.toLocaleString(undefined,{maximumFractionDigits:1})} m³</b><br>Today: <b>${m.daily.toFixed(1)} m³</b><br>Last: ${ago(m.seen)}`;
+    renderer.domElement.style.cursor='pointer';
+  }else{tip.style.display='none';renderer.domElement.style.cursor=dragging?'grabbing':'grab';}
+});
+function pick(e){const r=renderer.domElement.getBoundingClientRect();
+  mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(mouse,camera);
+  for(const h of ray.intersectObjects(scene.children,true)){if(h.object.userData.meterId)return h.object.userData.meterId;}
+  return null;}
+let selectedId=null;
+function focusMeter(id,fromScene){
+  selectedId=id; const n=nodeMap.get(id); if(n){camTargetGoal.set(n.x,4,n.side*14);camRGoal=30;}
+  renderUI(meters);
+  const m=meters.find(x=>x.id===id); if(m) openDetail(m);
+  if(fromScene){const el=document.querySelector(`.mcard[data-id="${id}"]`); el&&el.scrollIntoView({behavior:'smooth',block:'center'});}
+}
+function fmtFlow(m){ return m.type==='Flow Meter' ? (m.flow.toFixed(2)+' m³/h') : (m.flow.toFixed(2)+' m³/int'); }
+
+/* ================= UI ================= */
+function ago(ms){const s=(Date.now()-ms)/1000;
+  if(s<90)return Math.round(s)+'s ago'; if(s<5400)return Math.round(s/60)+'m ago';
+  if(s<172800)return (s/3600).toFixed(1)+'h ago'; return Math.round(s/86400)+'d ago';}
+let leakFilter=false;
+function renderUI(ms){
+  let ok=0,warn=0,bad=0,day=0,leaks=0;
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  const list=document.getElementById('meters'); list.innerHTML='';
+  const alarmed=alarmedDevices();
+  ms.forEach(m=>{const st=statusOf(m); if(st==='ok')ok++;else if(st==='warn')warn++;else bad++; day+=m.daily||0;
+    const leak=leakOf(m); if(leak)leaks++;
+    if(leakFilter && !leak)return;
+    if(q&&!m.name.toLowerCase().includes(q))return;
+    const hasAlarm=alarmed.has(m.name);
+    const el=document.createElement('div');
+    el.className='mcard '+st+(m.id===selectedId?' sel':''); el.dataset.id=m.id;
+    el.innerHTML=`<div class="row1"><div><div class="name">${m.name}${hasAlarm?'<span class="alarmpip" title="Has active alarm">🔔</span>':''}${leak?'<span class="alarmpip" title="Possible continuous flow (night flow '+m.nightMin+')" style="color:var(--warn)">💧</span>':''}${spikeOf(m)?'<span class="alarmpip" title="Usage spike '+spikeRatio(m).toFixed(1)+'× typical" style="color:var(--bad)">⚡</span>':''}</div><div class="type">${m.type}</div></div><span class="badge ${st}">${LABEL[st]}</span></div>
+      <div class="row2"><span>Flow <b>${fmtFlow(m)}</b></span><span>Today <b>${m.daily.toFixed(1)} m³</b></span><span>Cost <b>${fmtCost(m.daily)}</b></span><span>${ago(m.seen)}</span></div>
+      <div class="actions"><button class="btn g" onclick="event.stopPropagation();openReportModal('${m.id}')">📄 Report</button></div>`;
+    el.onclick=()=>focusMeter(m.id,false);
+    list.appendChild(el);
+  });
+  kTot.textContent=ms.length; kOk.textContent=ok; kWarn.textContent=warn; kBad.textContent=bad;
+  kDay.textContent=day.toFixed(0);
+  const kc=document.getElementById('kCost'); if(kc) kc.textContent=fmtCost(day);
+  const kl=document.getElementById('kLeak'); if(kl) kl.textContent=leaks;
+}
+window.dlReport=id=>{const m=meters.find(x=>x.id===id); if(m)downloadReport(m);};
+document.getElementById('search').addEventListener('input',()=>renderUI(meters));
+const kLeakPanel=document.querySelector('.kpi.lk');
+if(kLeakPanel) kLeakPanel.onclick=()=>{ leakFilter=!leakFilter; kLeakPanel.classList.toggle('active',leakFilter); document.getElementById('search').value=''; renderUI(meters); };
+
+/* ---- click an analytics panel to enlarge it ---- */
+let enlargedPanel=null, enlargedAnchor=null;
+function openPanel(p){
+  if(enlargedPanel) return;
+  enlargedPanel=p; enlargedAnchor=document.createComment('slot');
+  p.parentNode.insertBefore(enlargedAnchor,p);
+  document.getElementById('pmTitle').textContent=p.querySelector('.ph').textContent.trim();
+  document.getElementById('pmBody').appendChild(p);
+  p.classList.add('enlarged');
+  document.getElementById('panelModal').classList.add('open');
+}
+function closePanel(){
+  if(!enlargedPanel) return;
+  enlargedPanel.classList.remove('enlarged');
+  enlargedAnchor.parentNode.insertBefore(enlargedPanel,enlargedAnchor); enlargedAnchor.remove();
+  enlargedPanel=null;
+  document.getElementById('panelModal').classList.remove('open');
+}
+document.querySelectorAll('#analytics .panel').forEach(p=>p.addEventListener('click',()=>openPanel(p)));
+document.getElementById('pmClose').onclick=closePanel;
+document.getElementById('panelModal').addEventListener('click',e=>{ if(e.target.id==='panelModal') closePanel(); });
+addEventListener('keydown',e=>{ if(e.key==='Escape') closePanel(); });
+
+/* ---------- Grafana-style analytics panels ---------- */
+let connStatus={connected:17,disconnected:0};
+function themeC(){ return THEME==='night' ? {txt:'#eaf2ff',track:'#2b2f36',sub:'#8e9297'} : {txt:'#243444',track:'#e6ebf1',sub:'#6b7a8d'}; }
+function renderGauge(){
+  const tc=themeC();
+  const c=connStatus.connected||0, d=connStatus.disconnected||0, total=c+d||1, pct=c/total;
+  const cx=100,cy=100,r=62, start=225, span=270;
+  const polar=deg=>{const a=(deg-90)*Math.PI/180;return [cx+r*Math.cos(a),cy+r*Math.sin(a)];};
+  const arc=(s,e)=>{const [sx,sy]=polar(s),[ex,ey]=polar(e);const large=(e-s)<=180?0:1;return `M ${sx.toFixed(1)} ${sy.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${ex.toFixed(1)} ${ey.toFixed(1)}`;};
+  const col=pct>=0.999?'#3AAA35':(pct>=0.8?'#8fd18a':(pct>=0.5?'#e8871e':'#e03e4e'));
+  const val=Math.max(0.0001,pct);
+  document.getElementById('gauge').innerHTML=`
+    <path d="${arc(start,start+span)}" fill="none" stroke="${tc.track}" stroke-width="11" stroke-linecap="round"/>
+    <path d="${arc(start,start+span*val)}" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round"/>
+    <text x="${cx}" y="${cy+7}" text-anchor="middle" fill="${tc.txt}" font-size="33" font-weight="600">${Math.round(pct*100)}%</text>`;
+  document.getElementById('connYes').textContent=c;
+  document.getElementById('connNo').textContent=d;
+}
+function renderCharts(ms){
+  renderGauge();
+  let ok=0,warn=0,bad=0; ms.forEach(m=>{const s=statusOf(m); if(s==='ok')ok++;else if(s==='warn')warn++;else bad++;});
+  // donut
+  const total=ok+warn+bad||1, C=2*Math.PI*40;
+  const segs=[['#56c451',ok],['#ff780a',warn],['#f2495c',bad]];
+  let off=0, arcs='';
+  segs.forEach(([c,v])=>{ const len=(v/total)*C;
+    arcs+=`<circle cx="50" cy="50" r="40" fill="none" stroke="${c}" stroke-width="13" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 50 50)"/>`;
+    off+=len; });
+  const tc=themeC();
+  document.getElementById('donut').innerHTML=`<circle cx="50" cy="50" r="40" fill="none" stroke="${tc.track}" stroke-width="13"/>${arcs}<text x="50" y="47" text-anchor="middle" fill="${tc.txt}" font-size="18" font-weight="700">${ms.length}</text><text x="50" y="61" text-anchor="middle" fill="${tc.sub}" font-size="7.5">METERS</text>`;
+  document.getElementById('donutLegend').innerHTML=[['Flowing','#56c451',ok],['No Flow','#ff780a',warn],['Offline','#f2495c',bad]]
+    .map(([n,c,v])=>`<div class="dl"><span class="k"><span class="dot" style="background:${c}"></span>${n}</span><b>${v}</b></div>`).join('');
+  // top consumers bars
+  const el=document.getElementById('barsSvg');
+  const top=[...ms].sort((a,b)=>b.daily-a.daily).slice(0,8);
+  const W=600,rowH=17,gap=5,padL=150,padR=48, H=top.length*(rowH+gap);
+  const max=Math.max(...top.map(t=>t.daily),0.001), iw=W-padL-padR;
+  el.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  el.innerHTML=top.map((t,i)=>{ const y=i*(rowH+gap), w=Math.max(2,(t.daily/max)*iw);
+    const nm=t.name.length>22?t.name.slice(0,21)+'…':t.name;
+    return `<text x="${padL-6}" y="${y+rowH*0.72}" text-anchor="end" class="gbar-lbl">${nm}</text>
+      <rect x="${padL}" y="${y}" width="${w.toFixed(1)}" height="${rowH}" rx="2" fill="#ff780a"/>
+      <text x="${(padL+w+5).toFixed(1)}" y="${y+rowH*0.72}" class="gbar-val">${t.daily.toFixed(1)}</text>`;
+  }).join('');
+  renderZones(ms);
+}
+function renderZones(ms){
+  const z={}; ms.forEach(m=>{ const zn=zoneOf(m.name); (z[zn]=z[zn]||{d:0,n:0}); z[zn].d+=m.daily||0; z[zn].n++; });
+  const rows=ZONE_ORDER.filter(k=>z[k]).map(k=>({k,d:z[k].d,n:z[k].n}));
+  const el=document.getElementById('zonesSvg'); if(!el)return;
+  const W=520,rowH=20,gap=6,padL=118,padR=118, H=rows.length*(rowH+gap), iw=W-padL-padR;
+  const max=Math.max(0.001,...rows.map(r=>r.d));
+  el.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  el.innerHTML=rows.map((r,i)=>{ const y=i*(rowH+gap), w=Math.max(2,(r.d/max)*iw);
+    return `<text x="${padL-6}" y="${y+rowH*0.68}" text-anchor="end" class="z-lbl">${r.k} (${r.n})</text>
+      <rect x="${padL}" y="${y}" width="${w.toFixed(1)}" height="${rowH}" rx="2" fill="${ZONE_COL[r.k]}"><title>${r.k}: ${r.d.toFixed(1)} m³ · ${fmtCost0(r.d)}</title></rect>
+      <text x="${(padL+w+5).toFixed(1)}" y="${y+rowH*0.68}" class="z-val">${r.d.toFixed(0)} m³ · ${fmtCost0(r.d)}</text>`;
+  }).join('');
+}
+function renderTrend(){
+  const body=document.getElementById('trendBody'); if(!body)return;
+  function block(label,cur,prev,curLbl){
+    if(cur==null){ return `<div class="tr"><span class="trl">${label}</span><span class="trc">no data yet</span></div>`; }
+    let d='',cls='flat';
+    if(prev!=null && prev>0){ const p=((cur-prev)/prev*100); cls=p>1?'up':(p<-1?'down':'flat'); d=`<span class="trd ${cls}">${p>0?'▲':(p<0?'▼':'■')} ${Math.abs(p).toFixed(0)}%</span>`; }
+    return `<div class="tr"><span class="trl">${label}</span><span class="trv">${cur.toLocaleString()}</span>${d}</div>
+            <div class="tr"><span class="trl"></span><span class="trc">${curLbl} · ${fmtCost0(cur)}${prev!=null?' · prev '+prev.toLocaleString()+' m³':''}</span></div>`;
+  }
+  body.innerHTML = block('Week',trend.wk,trend.lastWk,'last full week (m³)') + block('Month',trend.moMTD,trend.lastMo,'this month to date (m³)');
+}
+
+/* ================= REFRESH LOOP ================= */
+const conn=document.getElementById('conn'), upd=document.getElementById('upd');
+function setConn(cls,txt){conn.className=cls;conn.textContent=txt;}
+function apply(ms,mode){
+  meters=ms; buildScene(meters); renderUI(meters); renderCharts(meters); renderTrend();
+  upd.textContent='updated '+new Date().toLocaleTimeString();
+}
+function showAuth(v){ document.getElementById('authbox').style.display=v?'block':'none'; }
+
+// show real embedded snapshot immediately
+apply(SNAPSHOT.meters,'snap');
+setConn('snap', token ? 'SNAPSHOT · connecting…' : 'SNAPSHOT · paste token to go live');
+if(!token) showAuth(true);
+
+async function refresh(){
+  if(!token){ setConn('snap','SNAPSHOT · paste token to go live'); showAuth(true); return; }
+  try{
+    const [ms,al]=await Promise.all([fetchLive(), fetchAlarms().catch(()=>alarms)]);
+    alarms=al||[]; apply(ms,'live'); renderAlarms(); setConn('live','● LIVE'); showAuth(false);
+    if(!window.__analyticsLoaded){ window.__analyticsLoaded=true; loadAnalytics(); }
+  }catch(e){
+    console.error(e);
+    if(e instanceof AuthError){ setConn('err','TOKEN EXPIRED · paste a fresh one'); showAuth(true); }
+    else{ setConn('err','API error · showing last data'); }
+  }
+}
+window.useManualToken=()=>{
+  let t=document.getElementById('tokIn').value.trim().replace(/^["']|["']$/g,'').trim(); // strip wrapping quotes
+  if(t){ token=t; try{localStorage.setItem(CONFIG.TOKEN_KEY,t);}catch(e){} showAuth(false); setConn('snap','connecting…'); refresh(); }
+};
+/* alarm drawer interactions */
+const drawer=document.getElementById('alarmDrawer');
+document.getElementById('alarmBtn').onclick=()=>drawer.classList.toggle('open');
+document.getElementById('adClose').onclick=()=>drawer.classList.remove('open');
+document.querySelectorAll('.af').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.af').forEach(x=>x.classList.remove('sel'));
+  b.classList.add('sel'); alarmFilter=b.dataset.f; renderAlarms();
+});
+renderAlarms();
+
+/* day / night toggle */
+function applyTheme(t){
+  THEME=t;
+  document.body.classList.toggle('night', t==='night');
+  scene.background.set(T3[t].bg);
+  scene.fog.color.set(T3[t].bg); scene.fog.near=T3[t].near; scene.fog.far=T3[t].far;
+  scene.remove(gridHelper);
+  gridHelper=new THREE.GridHelper(200,60,T3[t].grid[0],T3[t].grid[1]);
+  gridHelper.material.opacity=T3[t].gridOp; gridHelper.material.transparent=true; scene.add(gridHelper);
+  buildScene(meters); renderCharts(meters);
+  try{localStorage.setItem('wm_theme',t);}catch(e){}
+  document.getElementById('themeBtn').textContent = t==='night'?'☀️':'🌙';
+}
+document.getElementById('themeBtn').textContent = THEME==='night'?'☀️':'🌙';
+document.getElementById('themeBtn').onclick=()=>applyTheme(THEME==='night'?'day':'night');
+
+refresh();
+setInterval(refresh,CONFIG.POLL_MS);
+
+/* ================= ANIMATE ================= */
+const clock=new THREE.Clock();
+function resize(){const w=sceneEl.clientWidth,h=sceneEl.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);}
+addEventListener('resize',resize);resize();
+function animate(){requestAnimationFrame(animate);
+  const dt=clock.getDelta(),t=clock.elapsedTime;
+  waterTubes.forEach(w=>{ if(w.speed) w.tex.offset.x -= w.speed*dt; });
+  flows.forEach(f=>f.update(dt));
+  if(root)root.children.forEach(g=>{ if(g.userData&&g.userData.beacon&&g.userData.status!=='ok'){
+    const k=(Math.sin(t*(g.userData.status==='bad'?7:3.5))+1)/2;
+    g.userData.beacon.material.emissiveIntensity=0.3+k*1.5; g.userData.beacon.scale.setScalar(0.8+k*0.5);
+  }});
+  updateCam(); renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>

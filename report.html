@@ -1,0 +1,1475 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Monitoring · OPERON</title>
+<style>
+:root{
+  --bg:#f4f6f9; --panel:#fff; --line:#e6ebf1; --text:#2c3a4b; --muted:#8493a6;
+  --shadow:0 1px 3px rgba(20,40,70,.07), 0 8px 24px rgba(20,40,70,.05);
+  --bar:#7ba7d4; --barEdge:#5b8cc0; --grid:#eef1f5;
+}
+html[data-t="dark"]{
+  --bg:#0e1420; --panel:#161d2b; --line:#26303f; --text:#dfe7f2; --muted:#7f8da0;
+  --shadow:0 1px 3px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  --bar:#5b8cc0; --barEdge:#7ba7d4; --grid:#222c3b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+     font-family:'Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:14px}
+button,select,input{font-family:inherit}
+
+/* ---------- top bar ---------- */
+.topbar{display:flex;align-items:center;gap:18px;padding:12px 26px;background:var(--panel);
+        border-bottom:1px solid var(--line);flex-wrap:wrap;
+        position:sticky;top:0;z-index:20}
+.tb-item{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;color:var(--text)}
+.tb-item .ic{font-size:15px;opacity:.85}
+.tb-item .sub{font-weight:400;color:var(--muted);font-size:12.5px}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:16px}
+.tb-user{text-align:right;line-height:1.25;font-size:12.5px}
+.tb-user b{display:block;font-size:13.5px}
+.tb-user span{color:var(--muted)}
+#themeT{background:none;border:none;cursor:pointer;font-size:17px;color:var(--muted);padding:4px}
+.tb-logo{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:26px;padding:5px 12px}
+.tb-logo svg{width:26px;height:26px}
+
+/* ---------- title row ---------- */
+.titlerow{display:flex;align-items:center;padding:22px 26px 6px;gap:16px;flex-wrap:wrap}
+.titlerow h1{margin:0;font-size:29px;font-weight:400;letter-spacing:-.4px}
+.backbtn{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;
+         color:#fff;background:linear-gradient(135deg,#5bc0de,#3da8c9);border:none;border-radius:9px;
+         padding:9px 16px;text-decoration:none;cursor:pointer;white-space:nowrap;
+         box-shadow:0 2px 8px rgba(61,168,201,.32)}
+.backbtn:hover{filter:brightness(1.07)}
+.backbtn:active{transform:translateY(1px)}
+.selwrap{margin-left:auto;position:relative}
+#meterSel{appearance:none;-webkit-appearance:none;background:var(--panel);border:1px solid var(--line);
+          border-radius:9px;padding:11px 40px 11px 15px;font-size:14px;color:var(--text);
+          min-width:270px;cursor:pointer;box-shadow:var(--shadow)}
+.selwrap::after{content:'\25BE';position:absolute;right:15px;top:11px;font-size:13px;color:var(--muted);pointer-events:none}
+
+/* ---------- panel date range + download menu ---------- */
+.drange{display:none;align-items:center;gap:6px}
+.drange.on{display:flex}
+.drange input[type=date]{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+                         padding:6px 9px;font-size:12.5px;color:var(--text);cursor:pointer}
+.drange input[type=date]:focus{outline:none;border-color:#5bc0de}
+.drange span{font-size:12px;color:var(--muted)}
+.dlwrap{position:relative}
+.dlmenu{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line);
+        border-radius:10px;box-shadow:0 10px 30px rgba(20,40,70,.18);padding:5px;display:none;z-index:30;
+        min-width:158px}
+.dlmenu.on{display:block}
+.dlmenu button{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;
+               padding:8px 11px;border-radius:7px;font-size:12.5px;color:var(--text);cursor:pointer;text-align:left}
+.dlmenu button:hover{background:var(--grid)}
+.dlmenu .sep{height:1px;background:var(--line);margin:4px 6px}
+
+/* ---------- export buttons ---------- */
+.ebtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);
+      color:var(--text);border-radius:9px;padding:10px 15px;font-size:13px;font-weight:600;cursor:pointer;
+      box-shadow:var(--shadow)}
+.ebtn:hover{border-color:#5bc0de;color:#3da8c9}
+.ebtn.xl{border-color:#b7dcc0;color:#1d7a3e}
+.ebtn.xl:hover{background:rgba(29,122,62,.07);border-color:#1d7a3e}
+.ebtn.pdf{border-color:#f0c0bb;color:#c0392b}
+.ebtn.pdf:hover{background:rgba(192,57,43,.06);border-color:#c0392b}
+.ebtn.cmp{border-color:#c3b7ea;color:#6d5ce0}
+.ebtn.cmp:hover{background:rgba(109,92,224,.07);border-color:#6d5ce0}
+
+/* ---------- compare modal ---------- */
+#cmpModal{position:fixed;inset:0;background:rgba(10,20,35,.55);display:none;z-index:60;
+          align-items:center;justify-content:center;padding:20px}
+#cmpModal.on{display:flex}
+#cmpCard{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:1060px;max-width:96vw;
+         max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(20,40,70,.4)}
+#cmpCard .ch{display:flex;align-items:center;gap:10px;padding:15px 20px;border-bottom:1px solid var(--line)}
+#cmpCard .ch h3{margin:0;font-size:17px;font-weight:500}
+#cmpClose{margin-left:auto;background:none;border:none;font-size:17px;color:var(--muted);cursor:pointer}
+#cmpCard .cb{padding:14px 20px;overflow:auto}
+#cmpCard .cf{padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#cmpList{border:1px solid var(--line);border-radius:8px;max-height:190px;overflow:auto;padding:4px;margin-top:6px}
+.crow{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:5px;font-size:13px;cursor:pointer}
+.crow:hover{background:var(--grid)}
+.crow input{width:15px;height:15px;accent-color:#6d5ce0}
+.crow .ct{margin-left:auto;font-size:10.5px;color:var(--muted)}
+.cmpsec{margin-top:16px}
+.cmpsec h4{margin:0 0 7px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
+table.cmptbl{width:100%;border-collapse:collapse;font-size:12.5px}
+table.cmptbl th{background:var(--grid);color:var(--muted);font-size:10px;text-transform:uppercase;
+                letter-spacing:.3px;padding:7px 9px;text-align:left}
+table.cmptbl th.r,table.cmptbl td.r{text-align:right}
+table.cmptbl td{padding:7px 9px;border-bottom:1px solid var(--line)}
+table.cmptbl tbody tr:nth-child(even){background:var(--grid)}
+table.cmptbl tfoot td{padding:8px 9px;border-top:2px solid var(--line);font-weight:600}
+#cmpExports{display:none;gap:10px;margin-left:auto}
+
+/* ---------- KPI cards ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:13px;padding:14px 26px 4px}
+.kpi{border-radius:14px;padding:15px 14px;color:#fff;text-align:center;min-height:104px;
+     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+     box-shadow:0 4px 14px rgba(20,40,70,.13)}
+.kpi .kl{font-size:12.5px;font-weight:500;opacity:.97;line-height:1.3}
+.kpi .kv{font-size:20px;font-weight:700;line-height:1.2;word-break:break-word}
+.kpi .kv.sm{font-size:16px}
+.g-green {background:linear-gradient(135deg,#74d09a,#4bb87c)}
+.g-purple{background:linear-gradient(135deg,#8b7cf0,#6d5ce0)}
+.g-indigo{background:linear-gradient(135deg,#7a72ee,#5b52d6)}
+.g-amber {background:linear-gradient(135deg,#eeb14e,#dd8f2a)}
+.g-grass {background:linear-gradient(135deg,#79c96f,#4faa55)}
+.g-orange{background:linear-gradient(135deg,#eda257,#dd7f31)}
+.g-teal  {background:linear-gradient(135deg,#54c9b0,#33a893)}
+.g-slate {background:linear-gradient(135deg,#9aa7b8,#7c8a9d)}
+
+/* ---------- panels ---------- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:16px 26px 34px;align-items:start}
+@media(max-width:1150px){ .grid{grid-template-columns:1fr} }
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);
+       padding:18px 20px 14px;min-width:0}
+.panel:fullscreen{border-radius:0;overflow:auto;background:var(--panel)}
+.phead{display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap}
+.phead h2{margin:0;font-size:19px;font-weight:500;letter-spacing:-.2px}
+.ptools{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tsel{appearance:none;-webkit-appearance:none;background:var(--panel);border:1px solid var(--line);
+      border-radius:8px;padding:7px 11px;font-size:12.5px;color:var(--text);cursor:pointer}
+.ibtn{background:var(--panel);border:1px solid #9fd6e8;color:#4aa8c4;border-radius:8px;padding:7px 11px;
+      font-size:13px;cursor:pointer}
+.ibtn:hover{background:rgba(91,192,222,.10)}
+.ibtn.cmpb{border-color:#c3b7ea;color:#6d5ce0;font-weight:600}
+.ibtn.cmpb:hover{background:rgba(109,92,224,.09);border-color:#6d5ce0}
+.chartbox{width:100%;overflow-x:auto}
+.empty{padding:44px 10px;text-align:center;color:var(--muted);font-size:13px}
+
+/* stats strip under the chart */
+table.stats{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+table.stats th{background:var(--grid);color:var(--muted);font-size:11px;font-weight:600;
+               text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;text-align:right}
+table.stats th:first-child{text-align:left}
+table.stats td{padding:10px;border-bottom:1px solid var(--line);text-align:right}
+table.stats td:first-child{text-align:left;font-weight:600}
+
+/* heat map */
+.hmlegend{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-top:16px;font-size:12.5px;color:var(--muted)}
+.hmlegend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.hmscale{margin:14px auto 2px;max-width:660px}
+.hmbar{height:15px;border-radius:4px;background:linear-gradient(90deg,#1a9850,#66bd63,#d9ef8b,#fee08b,#fdae61,#f46d43,#b2182b)}
+.hmticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:5px}
+
+/* gate shown when the dashboard has not been unlocked */
+#gate{position:fixed;inset:0;z-index:999;display:none;align-items:center;justify-content:center;background:#0b1220}
+#gate.on{display:flex}
+#gateCard{width:340px;max-width:90vw;background:#141c2b;border:1px solid #27324a;border-radius:16px;
+          padding:30px 26px;text-align:center;color:#dfe7f2;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+#gateCard svg{width:42px;height:42px}
+#gateCard .gn{font-size:18px;font-weight:800;letter-spacing:3px;color:#3AAA35;margin-top:8px}
+#gateCard p{font-size:13px;color:#93a2b8;line-height:1.6;margin:14px 0 18px}
+#gateCard a{display:block;padding:11px;border-radius:8px;background:#3AAA35;color:#fff;
+            text-decoration:none;font-weight:600;font-size:14px}
+</style></head><body>
+
+<div id="gate"><div id="gateCard">
+  <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="37" fill="none" stroke="#3AAA35" stroke-width="8.5" stroke-linecap="round" stroke-dasharray="207 25" transform="rotate(118 50 50)"/><circle cx="40.5" cy="70" r="9.5" fill="#3AAA35"/></svg>
+  <div class="gn">OPERON</div>
+  <p>This page is locked. Open the dashboard and sign in there first — both pages share one login.</p>
+  <a href="index.html">Open the dashboard</a>
+</div></div>
+
+<div id="app" style="display:none">
+<div class="topbar">
+  <a href="index.html" class="backbtn" title="Back to the main dashboard">&#8592; Dashboard</a>
+  <div class="tb-item"><span class="ic">&#128197;</span><span id="today"></span></div>
+  <div class="tb-item"><span class="ic">&#128205;</span>Abu Dhabi</div>
+  <div class="tb-item"><span class="ic">&#128337;</span><span id="clock" class="sub"></span></div>
+  <div class="tb-right">
+    <button id="themeT" title="Toggle light / dark">&#127769;</button>
+    <div class="tb-user"><b>TCT</b><span id="whoami">admin</span></div>
+    <div class="tb-logo">
+      <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="37" fill="none" stroke="#3AAA35" stroke-width="8.5" stroke-linecap="round" stroke-dasharray="207 25" transform="rotate(118 50 50)"/><circle cx="40.5" cy="70" r="9.5" fill="#3AAA35"/></svg>
+    </div>
+  </div>
+</div>
+
+<div class="titlerow">
+  <h1>Monitoring</h1>
+  <div class="selwrap"><select id="meterSel"></select></div>
+</div>
+
+<div class="kpis" id="kpis"></div>
+
+<div class="grid">
+  <section class="panel" id="pWater">
+    <div class="phead">
+      <h2>Water Cons.</h2>
+      <div class="ptools">
+        <select class="tsel" id="chartType"><option value="bar">Bar</option><option value="line">Line</option><option value="area">Area</option></select>
+        <select class="tsel" id="wRange"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="180">Last 180 days</option><option value="custom">Custom dates&hellip;</option></select>
+        <span class="drange" id="wCustom"><input type="date" id="wFrom"><span>to</span><input type="date" id="wTo"></span>
+        <button class="ibtn cmpb" id="btnCompare" title="Compare several meters side by side">&#9878; Compare</button>
+        <span class="dlwrap">
+          <button class="ibtn" id="wExport" title="Download this report">&#10515;</button>
+          <div class="dlmenu" id="wMenu">
+            <button data-f="xlsx">&#128202; Excel workbook</button>
+            <button data-f="pdf">&#128196; PDF report</button>
+            <div class="sep"></div>
+            <button data-f="csv">&#10515; CSV data</button>
+          </div>
+        </span>
+        <button class="ibtn" id="wFull" title="Fullscreen">&#9974;</button>
+      </div>
+    </div>
+    <div class="chartbox" id="wChart"><div class="empty">Loading&hellip;</div></div>
+    <table class="stats"><thead><tr><th></th><th>CUR</th><th>TOTAL</th><th>MAX</th><th>MIN</th><th>AVG</th></tr></thead>
+      <tbody id="wStats"><tr><td>Water Cons.</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr></tbody></table>
+  </section>
+
+  <section class="panel" id="pHeat">
+    <div class="phead">
+      <h2>Daily Heat Map</h2>
+      <div class="ptools">
+        <select class="tsel" id="hRange"><option value="3" selected>Last 3 months</option><option value="6">Last 6 months</option><option value="12">Last 12 months</option><option value="custom">Custom dates&hellip;</option></select>
+        <span class="drange" id="hCustom"><input type="date" id="hFrom"><span>to</span><input type="date" id="hTo"></span>
+        <span class="dlwrap">
+          <button class="ibtn" id="hExport" title="Download this heat map">&#10515;</button>
+          <div class="dlmenu" id="hMenu">
+            <button data-f="xlsx">&#128202; Excel workbook</button>
+            <button data-f="pdf">&#128196; PDF report</button>
+            <div class="sep"></div>
+            <button data-f="csv">&#10515; CSV data</button>
+          </div>
+        </span>
+        <button class="ibtn" id="hFull" title="Fullscreen">&#9974;</button>
+      </div>
+    </div>
+    <div class="chartbox" id="hMap"><div class="empty">Loading&hellip;</div></div>
+    <div class="hmlegend">
+      <span><i style="background:#1a9850"></i>Very Low</span>
+      <span><i style="background:#66bd63"></i>Low</span>
+      <span><i style="background:#fee08b"></i>Medium</span>
+      <span><i style="background:#fdae61"></i>High</span>
+      <span><i style="background:#b2182b"></i>Very High</span>
+    </div>
+    <div class="hmscale"><div class="hmbar"></div><div class="hmticks" id="hTicks"></div></div>
+  </section>
+</div>
+
+<div id="cmpModal"><div id="cmpCard">
+  <div class="ch"><h3>Compare Meters</h3><button id="cmpClose" title="Close">&#10005;</button></div>
+  <div class="cb">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="font-size:12.5px;color:var(--muted)">Period</label>
+      <select class="tsel" id="cmpRange">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="180">Last 180 days</option>
+      </select>
+      <span style="font-size:12.5px;color:var(--muted);margin-left:auto" id="cmpCount">0 selected</span>
+      <button class="tsel" id="cmpAll">Select all</button>
+    </div>
+    <div id="cmpList"></div>
+    <div id="cmpResult"></div>
+  </div>
+  <div class="cf">
+    <button class="ebtn cmp" id="cmpRun">Compare</button>
+    <div id="cmpExports">
+      <button class="ebtn xl"  id="cmpExcel">&#128202; Excel</button>
+      <button class="ebtn pdf" id="cmpPDF">&#128196; PDF</button>
+    </div>
+  </div>
+</div></div>
+</div>
+
+<script>
+/* ============================================================
+   OPERON - per-meter Monitoring page
+   Reads the same platform session index.html established, from the same
+   browser storage. It never asks for the platform password itself: sign in
+   once on the dashboard and both pages work.
+   ============================================================ */
+const CONFIG={
+  API:'https://platform.3phtechsolutions.com/data/api/v1',
+  ORG:'d48c65a0-bfa5-11f0-a573-a314e8899d81',
+  TOKEN_KEY:'wm_token', CRED_KEY:'wm_cred',
+  LOCK_KEY:'wm_lock', UNLOCK_KEY:'wm_unlock_until',
+  RENEW_BEFORE_MS:15*60*1000,
+  TARIFF:10.41, CURRENCY:'AED'
+};
+const K={TOTAL:949,FLOWCONS:969,FLOWRATE:347,DAILY:1041};
+
+/* ---------- gate: reuse the dashboard's unlock window ---------- */
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function unlocked(){
+  if(!lsGet(CONFIG.LOCK_KEY)) return true;               // no lock configured yet
+  return (+lsGet(CONFIG.UNLOCK_KEY)||0) > Date.now();
+}
+if(!unlocked()) document.getElementById('gate').classList.add('on');
+else document.getElementById('app').style.display='block';
+
+/* ---------- auth (mirrors index.html, minus the sign-in UI) ---------- */
+class AuthError extends Error{}
+let token=lsGet(CONFIG.TOKEN_KEY)||null;
+let creds=(function(){ try{ const s=lsGet(CONFIG.CRED_KEY); if(!s) return null;
+  const c=JSON.parse(atob(s)); return (c&&c.email&&c.pass)?c:null; }catch(e){ return null; } })();
+let authBlocked=null, loginInFlight=null;
+function tokenExp(t){ try{ const p=JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+  return p.exp?p.exp*1000:0; }catch(e){ return 0; } }
+function tokenAlive(t,skew){ if(!t) return false; const e=tokenExp(t); return e===0||e-Date.now()>(skew||0); }
+async function doLogin(){
+  if(!creds) throw new AuthError('not signed in');
+  if(authBlocked) throw new AuthError(authBlocked);
+  let r,j={};
+  try{ r=await fetch(CONFIG.API+'/login',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({loginEmail:creds.email,password:creds.pass})}); }
+  catch(e){ throw new Error('cannot reach login endpoint'); }
+  try{ j=await r.json(); }catch(e){}
+  if(j&&j.accessToken){ token=j.accessToken; try{ localStorage.setItem(CONFIG.TOKEN_KEY,token); }catch(e){} return token; }
+  const msg=(j&&j.message)||('login failed (HTTP '+r.status+')');
+  if(/credential|blocked|locked|subscription/i.test(msg)||[400,401,403].indexOf(r.status)>=0) authBlocked=msg;
+  throw new AuthError(msg);
+}
+function ensureToken(){
+  if(tokenAlive(token,CONFIG.RENEW_BEFORE_MS)) return Promise.resolve(token);
+  if(!creds) return token?Promise.resolve(token):Promise.reject(new AuthError('not signed in'));
+  if(!loginInFlight) loginInFlight=doLogin().finally(function(){ loginInFlight=null; });
+  return loginInFlight;
+}
+function postRead(q){ return fetch(CONFIG.API+'/dynamicapi/read',{method:'POST',
+  headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({query:q})}); }
+async function sql(q){
+  await ensureToken();
+  let r=await postRead(q);
+  if(r.status===401||r.status===403){
+    token=null; try{ localStorage.removeItem(CONFIG.TOKEN_KEY); }catch(e){}
+    if(creds&&!authBlocked){ await ensureToken(); r=await postRead(q); }
+  }
+  if(r.status===401||r.status===403) throw new AuthError(authBlocked||'session expired');
+  if(!r.ok) throw new Error('query failed ('+r.status+')');
+  const j=await r.json(); return j.data||[];
+}
+
+/* ---------- helpers ---------- */
+const DT="to_timestamp(l.ts/1000) at time zone 'Asia/Dubai'";
+function nf(v,d){ return Number(v).toLocaleString(undefined,
+  {minimumFractionDigits:d==null?0:d, maximumFractionDigits:d==null?3:d}); }
+function dubaiKey(ms){ return new Date(ms+4*3600000).toISOString().slice(0,10); }
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function cssv(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+/* ---------- state ---------- */
+let meters=[], current=null, wSeries=[], hSeries=[];
+let wPeriod=null, hPeriod=null;   // resolved period per panel
+
+/* ---------- clock ---------- */
+function tick(){
+  const n=new Date();
+  document.getElementById('today').textContent=n.toLocaleDateString(undefined,{day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('clock').textContent=n.toLocaleTimeString();
+}
+tick(); setInterval(tick,1000);
+
+/* ---------- theme ---------- */
+const themeBtn=document.getElementById('themeT');
+function setTheme(t){
+  document.documentElement.setAttribute('data-t',t);
+  themeBtn.innerHTML = t==='dark' ? '&#9728;' : '&#127769;';
+  try{ localStorage.setItem('wm_theme_mon',t); }catch(e){}
+  if(current) draw();
+}
+themeBtn.onclick=function(){ setTheme(document.documentElement.getAttribute('data-t')==='dark'?'light':'dark'); };
+setTheme(lsGet('wm_theme_mon')||'light');
+
+/* ---------- meter list ---------- */
+async function loadMeters(){
+  const rows=await sql("select distinct on (d.id) d.id, d.name, d.type, s.active "+
+    "from device_status_history s join devices d on d.id=s.device "+
+    "where d.org='"+CONFIG.ORG+"' and d.type in ('Water Meter','Flow Meter') "+
+    "order by d.id, s.ts desc");
+  meters=rows.map(function(r){ return {id:r.id,name:String(r.name).trim(),type:r.type,active:r.active}; })
+             .sort(function(a,b){ return a.name.localeCompare(b.name); });
+  const sel=document.getElementById('meterSel');
+  sel.innerHTML=meters.map(function(m){ return '<option value="'+m.id+'">'+esc(m.name)+'</option>'; }).join('');
+  let want=null;
+  try{ want=new URLSearchParams(location.search).get('m'); }catch(e){}
+  const saved=want||lsGet('wm_last_meter');
+  current=meters.filter(function(m){ return m.id===saved; })[0]||meters[0];
+  if(current) try{ localStorage.setItem('wm_last_meter',current.id); }catch(e){}
+  if(current) sel.value=current.id;
+  sel.onchange=function(){
+    current=meters.filter(function(m){ return m.id===sel.value; })[0];
+    try{ localStorage.setItem('wm_last_meter',current.id); }catch(e){}
+    loadMeter();
+  };
+}
+
+/* ---------- KPI cards ---------- */
+async function loadKpis(){
+  const m=current, now=Date.now();
+  const todayKey=dubaiKey(now), mk=todayKey.slice(0,7);
+  const yr=+mk.slice(0,4), mo=+mk.slice(5,7);
+  const pY=(mo===1)?yr-1:yr, pM=(mo===1)?12:mo-1;
+  const prevMk=pY+'-'+(pM<10?'0':'')+pM;
+  const prevStart=new Date(prevMk+'-01T00:00:00').getTime();
+
+  const latest=await sql("select l.key, l.num_value from ts_data_latest l where l.device='"+m.id+
+    "' and l.key in ("+K.TOTAL+","+K.FLOWCONS+","+K.FLOWRATE+","+K.DAILY+")");
+  const lv={}; latest.forEach(function(r){ lv[Number(r.key)]=Number(r.num_value); });
+
+  const daily=await sql("select date_trunc('day',"+DT+")::date::text as d, max(l.num_value) as v "+
+    "from ts_data l where l.device='"+m.id+"' and l.key="+K.DAILY+" and l.ts>="+prevStart+
+    " group by d order by d asc");
+
+  let todayV=0, monthV=0, prevV=0, sum=0, n=0;
+  const monthsSeen={};
+  daily.forEach(function(r){
+    const v=Number(r.v), ym=r.d.slice(0,7);
+    if(r.d===todayKey) todayV=v;
+    if(ym===mk) monthV+=v;
+    if(ym===prevMk) prevV+=v;
+    monthsSeen[ym]=(monthsSeen[ym]||0)+v; sum+=v; n++;
+  });
+  const dailyAvg=n?sum/n:0;
+  const mKeys=Object.keys(monthsSeen);
+  const monthlyAvg=mKeys.length?sum/mKeys.length:0;
+  const flow=(m.type==='Flow Meter')?(lv[K.FLOWRATE]||0):(lv[K.FLOWCONS]||0);
+
+  const cards=[
+    [m.active?'g-green':'g-slate','Device Status', m.active?'Connected':'Offline', true],
+    ['g-purple','Meter Name', m.name, true],
+    ['g-indigo','Net Meter Reading', nf(lv[K.TOTAL]||0,1)+' m³'],
+    ['g-amber' ,'Total Cons. (Today)', nf(todayV,1)+' m³'],
+    ['g-grass' ,'Daily Avg. Cons.', nf(dailyAvg,3)+' m³'],
+    ['g-orange','Total Cons. (This Month)', nf(monthV,0)+' m³'],
+    ['g-amber' ,'Prev Month Cons.', nf(prevV,0)+' m³'],
+    ['g-grass' ,'Monthly Avg. Cons.', nf(monthlyAvg,1)+' m³'],
+    ['g-teal'  ,'Current Flow', nf(flow,2)+' m³/h']
+  ];
+  document.getElementById('kpis').innerHTML=cards.map(function(c){
+    return '<div class="kpi '+c[0]+'"><div class="kl">'+esc(c[1])+
+           '</div><div class="kv'+(c[3]?' sm':'')+'">'+esc(c[2])+'</div></div>';
+  }).join('');
+}
+
+/* ---------- Water Cons. chart ---------- */
+async function loadWater(){
+  const per=waterPeriod();
+  if(per.err){ alert(per.err); return; }
+  wPeriod=per;
+  const rows=await sql("select date_trunc('day',"+DT+")::date::text as d, max(l.num_value) as v "+
+    "from ts_data l where l.device='"+current.id+"' and l.key="+K.DAILY+
+    " and l.ts>="+per.from+" and l.ts<="+per.to+
+    " group by d order by d asc");
+  const have={}; rows.forEach(function(r){ have[r.d]=Number(r.v); });
+  const last=dubaiKey(per.to);
+  wSeries=[];
+  for(let t=per.from, guard=0; guard<4000; t+=86400000, guard++){
+    const k=dubaiKey(t);
+    wSeries.push({d:k, v:(k in have)?have[k]:null});
+    if(k>=last) break;
+  }
+  drawWater(); drawStats();
+}
+function drawStats(){
+  const v=wSeries.filter(function(s){ return s.v!=null; }).map(function(s){ return s.v; });
+  const tb=document.getElementById('wStats');
+  if(!v.length){ tb.innerHTML='<tr><td>Water Cons.</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>'; return; }
+  const tot=v.reduce(function(a,b){ return a+b; },0);
+  tb.innerHTML='<tr><td>Water Cons.</td><td>'+nf(v[v.length-1],2)+'</td><td>'+nf(tot,2)+
+    '</td><td>'+nf(Math.max.apply(null,v),3)+'</td><td>'+nf(Math.min.apply(null,v),3)+
+    '</td><td>'+nf(tot/v.length,2)+'</td></tr>';
+}
+function drawWater(){
+  const box=document.getElementById('wChart');
+  const pts=wSeries.filter(function(s){ return s.v!=null; });
+  if(!pts.length){ box.innerHTML='<div class="empty">No readings in this range.</div>'; return; }
+  const type=document.getElementById('chartType').value;
+  const W=960,H=380,pl=64,pr=16,pt=16,pb=64, iw=W-pl-pr, ih=H-pt-pb;
+  const n=wSeries.length;
+  const max=Math.max.apply(null,pts.map(function(s){ return s.v; }).concat([0.001]));
+  const bw=iw/n, Y=function(v){ return pt+ih-(v/max)*ih; }, Xc=function(i){ return pl+i*bw+bw/2; };
+  const bar=cssv('--bar')||'#7ba7d4', edge=cssv('--barEdge')||'#5b8cc0',
+        grid=cssv('--grid')||'#eef1f5', mut=cssv('--muted')||'#8493a6';
+  let g='';
+  for(let k=0;k<=5;k++){
+    const y=pt+ih-(k/5)*ih, val=max*k/5;
+    g+='<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+y.toFixed(1)+'" stroke="'+grid+'"/>'
+     + '<text x="'+(pl-8)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="11" fill="'+mut+'">'
+     + (max>=1000?(val/1000).toFixed(3)+'k':val.toFixed(3))+'</text>';
+  }
+  let body='';
+  if(type==='bar'){
+    wSeries.forEach(function(s,i){
+      if(s.v==null) return;
+      const h=Math.max(1,(s.v/max)*ih), x=pl+i*bw+bw*0.22, w=Math.max(1.5,bw*0.56);
+      body+='<rect x="'+x.toFixed(1)+'" y="'+Y(s.v).toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+
+            '" fill="'+bar+'" stroke="'+edge+'"><title>'+s.d+': '+nf(s.v,3)+' m³</title></rect>';
+    });
+  }else{
+    let run=[], segs=[];
+    wSeries.forEach(function(s,i){
+      if(s.v==null){ if(run.length) segs.push(run); run=[]; }
+      else run.push([Xc(i),Y(s.v)]);
+    });
+    if(run.length) segs.push(run);
+    segs.forEach(function(sg){
+      const p=sg.map(function(q){ return q[0].toFixed(1)+','+q[1].toFixed(1); }).join(' ');
+      if(type==='area'&&sg.length>1)
+        body+='<polygon points="'+sg[0][0].toFixed(1)+','+(pt+ih)+' '+p+' '+sg[sg.length-1][0].toFixed(1)+','+(pt+ih)+
+              '" fill="'+bar+'" opacity=".28"/>';
+      body+='<polyline points="'+p+'" fill="none" stroke="'+edge+'" stroke-width="2.2"/>';
+      sg.forEach(function(q){ body+='<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="2.6" fill="'+edge+'"/>'; });
+    });
+    wSeries.forEach(function(s,i){
+      if(s.v!=null) body+='<rect x="'+(pl+i*bw).toFixed(1)+'" y="'+pt+'" width="'+bw.toFixed(1)+'" height="'+ih+
+        '" fill="transparent"><title>'+s.d+': '+nf(s.v,3)+' m³</title></rect>';
+    });
+  }
+  const step=bw>=44?1:Math.ceil(44/bw);
+  let xl='';
+  wSeries.forEach(function(s,i){
+    if(i%step!==0 && i!==n-1) return;
+    const lab=new Date(s.d+'T00:00:00').toLocaleDateString(undefined,{day:'2-digit',month:'short'});
+    xl+='<text transform="translate('+Xc(i).toFixed(1)+','+(pt+ih+16)+') rotate(-34)" text-anchor="end" font-size="11" fill="'+mut+'">'+lab+'</text>';
+  });
+  box.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="min-width:520px">'+g+body+xl+'</svg>'
+    +'<div style="text-align:center;font-size:12.5px;color:'+mut+';margin-top:2px">'
+    +'<span style="display:inline-block;width:11px;height:11px;background:'+bar+';border:1px solid '+edge+';vertical-align:-1px;margin-right:6px"></span>Water Cons.</div>';
+}
+
+/* ---------- Daily Heat Map ---------- */
+const HM=['#1a9850','#66bd63','#a6d96a','#d9ef8b','#fee08b','#fdae61','#f46d43','#d73027','#b2182b'];
+function hmColor(t){
+  if(!(t>0)) return HM[0];
+  if(t>=1) return HM[HM.length-1];
+  const x=t*(HM.length-1), i=Math.floor(x), f=x-i;
+  const a=HM[i].match(/\w\w/g).map(function(h){ return parseInt(h,16); });
+  const b=HM[Math.min(i+1,HM.length-1)].match(/\w\w/g).map(function(h){ return parseInt(h,16); });
+  return '#'+a.map(function(v,k){ return Math.round(v+(b[k]-v)*f).toString(16).replace(/^(.)$/,'0$1'); }).join('');
+}
+async function loadHeat(){
+  const per=heatPeriod();
+  if(per.err){ alert(per.err); return; }
+  hPeriod=per;
+  const rows=await sql("select date_trunc('day',"+DT+")::date::text as d, max(l.num_value) as v "+
+    "from ts_data l where l.device='"+current.id+"' and l.key="+K.DAILY+
+    " and l.ts>="+per.from+" and l.ts<="+per.to+
+    " group by d order by d asc");
+  hSeries=rows.map(function(r){ return {d:r.d, v:Number(r.v)}; });
+  drawHeat();
+}
+function drawHeat(){
+  const box=document.getElementById('hMap');
+  if(!hSeries.length){
+    box.innerHTML='<div class="empty">No readings in this range.</div>';
+    document.getElementById('hTicks').innerHTML=''; return;
+  }
+  const vals=hSeries.map(function(s){ return s.v; });
+  const mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals), span=(mx-mn)||1;
+  const byM={};
+  hSeries.forEach(function(s){
+    const k=s.d.slice(0,7);
+    if(!byM[k]) byM[k]={};
+    byM[k][+s.d.slice(8,10)]=s.v;
+  });
+  const monthKeys=Object.keys(byM).sort().reverse();
+  const mut=cssv('--muted')||'#8493a6', line=cssv('--line')||'#e6ebf1';
+  const cw=27, chh=27, pl=52, pt=8;
+  const W=pl+31*cw+10, H=pt+monthKeys.length*chh+30;
+  let cells='', rows='', cols='';
+  monthKeys.forEach(function(mk,r){
+    const y=pt+r*chh;
+    rows+='<text x="'+(pl-10)+'" y="'+(y+chh/2+4)+'" text-anchor="end" font-size="12" fill="'+mut+'">'
+        + new Date(mk+'-01T00:00:00').toLocaleDateString(undefined,{month:'short'})+'</text>';
+    for(let d=1;d<=31;d++){
+      const v=byM[mk][d], x=pl+(d-1)*cw;
+      cells += (v==null)
+        ? '<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(cw-2)+'" height="'+(chh-2)+'" rx="2" fill="none" stroke="'+line+'"/>'
+        : '<rect x="'+(x+1)+'" y="'+(y+1)+'" width="'+(cw-2)+'" height="'+(chh-2)+'" rx="2" fill="'+hmColor((v-mn)/span)+
+          '"><title>'+mk+'-'+String(d).replace(/^(\d)$/,'0$1')+': '+nf(v,3)+' m³</title></rect>';
+    }
+  });
+  for(let d=1;d<=31;d++)
+    cols+='<text x="'+(pl+(d-1)*cw+cw/2)+'" y="'+(pt+monthKeys.length*chh+18)+'" text-anchor="middle" font-size="11" fill="'+mut+'">'+d+'</text>';
+  box.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="min-width:'+Math.round(W*0.72)+'px">'+cells+rows+cols+'</svg>';
+  const tk=[];
+  for(let i=0;i<=5;i++) tk.push(nf(mn+span*i/5,3));
+  document.getElementById('hTicks').innerHTML=tk.map(function(t){ return '<span>'+t+'</span>'; }).join('');
+}
+
+/* ---------- CSV export ---------- */
+function csvDownload(name,head,rows){
+  const s=head.join(',')+'\n'+rows.map(function(r){ return r.join(','); }).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([s],{type:'text/csv'}));
+  a.download=name; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },1000);
+}
+function safeName(){ return current.name.replace(/[^a-z0-9]+/gi,'_'); }
+document.getElementById('wExport').onclick=function(){
+  if(!wSeries.length) return;
+  csvDownload(safeName()+'_water_cons.csv',['Date','Water Cons. (m3)'],
+    wSeries.map(function(s){ return [s.d, s.v==null?'':s.v]; }));
+};
+document.getElementById('hExport').onclick=function(){
+  if(!hSeries.length) return;
+  csvDownload(safeName()+'_heatmap.csv',['Date','Daily Cons. (m3)'],
+    hSeries.map(function(s){ return [s.d, s.v]; }));
+};
+
+/* ---------- fullscreen ---------- */
+function fs(el){
+  if(document.fullscreenElement) document.exitFullscreen();
+  else if(el.requestFullscreen) el.requestFullscreen();
+}
+document.getElementById('wFull').onclick=function(){ fs(document.getElementById('pWater')); };
+document.getElementById('hFull').onclick=function(){ fs(document.getElementById('pHeat')); };
+addEventListener('resize',function(){ if(current) draw(); });
+
+/* ---------- wiring ---------- */
+function draw(){ drawWater(); drawHeat(); }
+document.getElementById('chartType').onchange=drawWater;
+document.getElementById('wRange').onchange=function(){ run(loadWater); };
+document.getElementById('hRange').onchange=function(){ run(loadHeat); };
+
+function fail(e){
+  const msg=(e&&e.message)||String(e);
+  const where=(e instanceof AuthError)
+    ? 'Not signed in to the platform. Open the dashboard and sign in there — this page shares that session.'
+    : 'Could not load data: '+msg;
+  document.getElementById('kpis').innerHTML=
+    '<div style="grid-column:1/-1;padding:14px 16px;background:#fdecea;border:1px solid #f5c2bd;'+
+    'border-radius:10px;color:#a33">'+esc(where)+'</div>';
+  document.getElementById('wChart').innerHTML='<div class="empty">&mdash;</div>';
+  document.getElementById('hMap').innerHTML='<div class="empty">&mdash;</div>';
+}
+async function run(fn){ try{ await fn(); }catch(e){ fail(e); } }
+async function loadMeter(){
+  document.getElementById('wChart').innerHTML='<div class="empty">Loading&hellip;</div>';
+  document.getElementById('hMap').innerHTML='<div class="empty">Loading&hellip;</div>';
+  await run(loadKpis); await run(loadWater); await run(loadHeat);
+}
+(async function boot(){
+  if(!unlocked()) return;
+  if(creds) document.getElementById('whoami').textContent=creds.email;
+  try{ await loadMeters(); }catch(e){ fail(e); return; }
+  if(!current){ fail(new Error('No meters returned for this organisation.')); return; }
+  await loadMeter();
+  setInterval(function(){ if(current) run(loadKpis); },60000);
+})();
+</script>
+<script>
+/* ============================================================
+   Minimal .xlsx writer — no external library.
+   Builds a real OOXML workbook inside a stored (uncompressed) ZIP.
+   Cell model: {v:value, n:true for number, s:styleId}
+   Styles: 0 plain · 1 bold · 2 title · 3 header · 4 num(3dp) · 5 num(2dp)
+           6 bordered text · 7 bold bordered · 8 band fill
+   ============================================================ */
+var XLSX = (function(){
+
+  var CRC = (function(){
+    var t = new Int32Array(256);
+    for (var n = 0; n < 256; n++){
+      var c = n;
+      for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c;
+    }
+    return t;
+  })();
+  function crc32(u8){
+    var c = -1;
+    for (var i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ -1) >>> 0;
+  }
+
+  function utf8(str){
+    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(str);
+    var b = Buffer.from(str, 'utf8');                       // node fallback (tests)
+    return new Uint8Array(b.buffer, b.byteOffset, b.length);
+  }
+
+  /* ---- ZIP (store, no compression) ---- */
+  function zip(files){
+    var parts = [], central = [], offset = 0;
+    function u16(n){ return [n & 0xFF, (n >>> 8) & 0xFF]; }
+    function u32(n){ return [n & 0xFF, (n >>> 8) & 0xFF, (n >>> 16) & 0xFF, (n >>> 24) & 0xFF]; }
+
+    files.forEach(function(f){
+      var name = utf8(f.name), data = utf8(f.data), c = crc32(data);
+      // fixed timestamp: keeps output byte-identical between runs
+      var time = 0, date = ((2020 - 1980) << 9) | (1 << 5) | 1;
+      var local = [].concat([0x50,0x4b,0x03,0x04], u16(20), u16(0), u16(0), u16(time), u16(date),
+                            u32(c), u32(data.length), u32(data.length), u16(name.length), u16(0));
+      parts.push(new Uint8Array(local), name, data);
+      central.push({name:name, crc:c, size:data.length, off:offset});
+      offset += local.length + name.length + data.length;
+    });
+
+    var cdir = [];
+    central.forEach(function(e){
+      var h = [].concat([0x50,0x4b,0x01,0x02], u16(20), u16(20), u16(0), u16(0), u16(0),
+                        u16(((2020-1980)<<9)|(1<<5)|1), u32(e.crc), u32(e.size), u32(e.size),
+                        u16(e.name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(e.off));
+      cdir.push(new Uint8Array(h), e.name);
+    });
+    var cdirSize = cdir.reduce(function(a, b){ return a + b.length; }, 0);
+    var eocd = new Uint8Array([].concat([0x50,0x4b,0x05,0x06], u16(0), u16(0),
+      u16(central.length), u16(central.length), u32(cdirSize), u32(offset), u16(0)));
+
+    var all = parts.concat(cdir, [eocd]);
+    var total = all.reduce(function(a, b){ return a + b.length; }, 0);
+    var out = new Uint8Array(total), p = 0;
+    all.forEach(function(chunk){ out.set(chunk, p); p += chunk.length; });
+    return out;
+  }
+
+  /* ---- helpers ---- */
+  function col(i){                                          // 0 -> A, 26 -> AA
+    var s = '';
+    i = i + 1;
+    while (i > 0){ var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = ((i - m) / 26) | 0; }
+    return s;
+  }
+  function xe(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                    .replace(/"/g,'&quot;').replace(/\x00-\x08\x0b\x0c\x0e-\x1f/g,'');
+  }
+
+  var STYLES =
+'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+'<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.000"/><numFmt numFmtId="165" formatCode="#,##0.00"/></numFmts>' +
+'<fonts count="5">' +
+ '<font><sz val="11"/><name val="Calibri"/></font>' +
+ '<font><b/><sz val="11"/><name val="Calibri"/></font>' +
+ '<font><b/><sz val="16"/><color rgb="FF1C3350"/><name val="Calibri"/></font>' +
+ '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>' +
+ '<font><sz val="10"/><color rgb="FF7A8A9C"/><name val="Calibri"/></font>' +
+'</fonts>' +
+'<fills count="4">' +
+ '<fill><patternFill patternType="none"/></fill>' +
+ '<fill><patternFill patternType="gray125"/></fill>' +
+ '<fill><patternFill patternType="solid"><fgColor rgb="FF2F7FBF"/><bgColor indexed="64"/></patternFill></fill>' +
+ '<fill><patternFill patternType="solid"><fgColor rgb="FFF2F5F9"/><bgColor indexed="64"/></patternFill></fill>' +
+'</fills>' +
+'<borders count="2">' +
+ '<border><left/><right/><top/><bottom/><diagonal/></border>' +
+ '<border><left/><right/><top/><bottom style="thin"><color rgb="FFD8DFE8"/></bottom><diagonal/></border>' +
+'</borders>' +
+'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+
+'<cellXfs count="9">' +
+ '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+ '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+ '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+ '<xf numFmtId="0" fontId="3" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1">' +
+   '<alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+ '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>' +
+ '<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"/>' +
+ '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>' +
+ '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>' +
+ '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+'</cellXfs>' +
+'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+'</styleSheet>';
+
+  function sheetXml(sh){
+    var x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+    if (sh.freeze){
+      x += '<sheetViews><sheetView workbookViewId="0"><pane ySplit="' + sh.freeze +
+           '" topLeftCell="A' + (sh.freeze + 1) + '" activePane="bottomLeft" state="frozen"/>' +
+           '</sheetView></sheetViews>';
+    }
+    if (sh.cols && sh.cols.length){
+      x += '<cols>';
+      sh.cols.forEach(function(w, i){
+        x += '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>';
+      });
+      x += '</cols>';
+    }
+    x += '<sheetData>';
+    sh.rows.forEach(function(row, r){
+      x += '<row r="' + (r + 1) + '">';
+      row.forEach(function(cell, c){
+        if (cell === null || cell === undefined || cell === '') return;
+        var ref = col(c) + (r + 1);
+        var st  = (cell && cell.s != null) ? cell.s : 0;
+        var val = (cell && typeof cell === 'object') ? cell.v : cell;
+        var isNum = (cell && typeof cell === 'object') ? !!cell.n : (typeof cell === 'number');
+        if (isNum && val !== null && val !== '' && isFinite(val)){
+          x += '<c r="' + ref + '" s="' + st + '"><v>' + val + '</v></c>';
+        } else {
+          x += '<c r="' + ref + '" s="' + st + '" t="inlineStr"><is><t xml:space="preserve">' +
+               xe(val === null || val === undefined ? '' : val) + '</t></is></c>';
+        }
+      });
+      x += '</row>';
+    });
+    x += '</sheetData>';
+    if (sh.merges && sh.merges.length){
+      x += '<mergeCells count="' + sh.merges.length + '">';
+      sh.merges.forEach(function(m){ x += '<mergeCell ref="' + m + '"/>'; });
+      x += '</mergeCells>';
+    }
+    return x + '</worksheet>';
+  }
+
+  /* sheets: [{name, cols:[widths], rows:[[cell,...]], freeze, merges}] */
+  function build(sheets){
+    var files = [];
+    files.push({name:'[Content_Types].xml', data:
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      sheets.map(function(s, i){
+        return '<Override PartName="/xl/worksheets/sheet' + (i + 1) +
+               '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+      }).join('') +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      '</Types>'});
+
+    files.push({name:'_rels/.rels', data:
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '</Relationships>'});
+
+    files.push({name:'xl/workbook.xml', data:
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+      'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+      sheets.map(function(s, i){
+        return '<sheet name="' + xe(s.name.slice(0, 31)) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
+      }).join('') +
+      '</sheets></workbook>'});
+
+    files.push({name:'xl/_rels/workbook.xml.rels', data:
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      sheets.map(function(s, i){
+        return '<Relationship Id="rId' + (i + 1) +
+               '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>';
+      }).join('') +
+      '<Relationship Id="rId' + (sheets.length + 1) +
+      '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      '</Relationships>'});
+
+    files.push({name:'xl/styles.xml', data:STYLES});
+    sheets.forEach(function(s, i){
+      files.push({name:'xl/worksheets/sheet' + (i + 1) + '.xml', data:sheetXml(s)});
+    });
+    return zip(files);
+  }
+
+  return {build:build, col:col};
+})();
+
+if (typeof module !== 'undefined') module.exports = XLSX;
+
+</script>
+<script>
+/* ============================================================
+   Exports: formatted Excel workbook, print-ready PDF, and a
+   multi-meter comparison report. Depends on the page globals
+   (current, meters, wSeries, hSeries, sql, nf, esc, CONFIG, K, DT).
+   ============================================================ */
+
+/* ---- cell shorthands: H header, B bold-bordered, T text, N3/N2 numbers ---- */
+function H(v){ return {v:v, s:3}; }
+function B(v){ return {v:v, s:7}; }
+function T(v){ return {v:v, s:6}; }
+function N3(v){ return (v===null||v===undefined) ? {v:'',s:6} : {v:v, n:true, s:4}; }
+function N2(v){ return (v===null||v===undefined) ? {v:'',s:6} : {v:v, n:true, s:5}; }
+function MUT(v){ return {v:v, s:8}; }
+
+function saveBytes(bytes, name, mime){
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes], {type:mime}));
+  a.download = name; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1500);
+}
+function stamp(){
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function periodLabel(){
+  if (!wSeries.length) return wPeriod ? wPeriod.label : '';
+  var days = wPeriod ? wPeriod.days : wSeries.length;
+  return wSeries[0].d + ' to ' + wSeries[wSeries.length-1].d + ' (' + days + ' days)';
+}
+function kpiPairs(){
+  return [].map.call(document.querySelectorAll('.kpi'), function(k){
+    return [k.querySelector('.kl').textContent, k.querySelector('.kv').textContent];
+  });
+}
+function seriesStats(vals){
+  if (!vals.length) return null;
+  var tot = vals.reduce(function(a,b){ return a+b; }, 0);
+  return {total:tot, avg:tot/vals.length, max:Math.max.apply(null,vals),
+          min:Math.min.apply(null,vals), n:vals.length, cur:vals[vals.length-1]};
+}
+
+/* ================= EXCEL ================= */
+function exportExcel(){
+  if (!current) return;
+  var vals = wSeries.filter(function(s){ return s.v != null; }).map(function(s){ return s.v; });
+  var st = seriesStats(vals);
+  var tariff = CONFIG.TARIFF, cur = CONFIG.CURRENCY;
+
+  /* --- Sheet 1: Summary --- */
+  var sum = [
+    [{v:'Water Consumption Report', s:2}],
+    [{v:current.name, s:1}],
+    [MUT('Meter type'), MUT(current.type)],
+    [MUT('Reporting period'), MUT(periodLabel())],
+    [MUT('Generated'), MUT(new Date().toLocaleString())],
+    [MUT('Source'), MUT('3PhTech platform - TCT, Abu Dhabi')],
+    [],
+    [H('Metric'), H('Value')]
+  ];
+  kpiPairs().forEach(function(p){ sum.push([B(p[0]), T(p[1])]); });
+  sum.push([]);
+  sum.push([H('Series statistics'), H('Value')]);
+  if (st){
+    sum.push([B('Days with readings'), N3(st.n)]);
+    sum.push([B('Total consumption (m³)'), N2(st.total)]);
+    sum.push([B('Average per day (m³)'), N2(st.avg)]);
+    sum.push([B('Highest day (m³)'), N3(st.max)]);
+    sum.push([B('Lowest day (m³)'), N3(st.min)]);
+    sum.push([B('Latest reading (m³)'), N3(st.cur)]);
+    sum.push([B('Estimated cost (' + cur + ')'), N2(st.total * tariff)]);
+    sum.push([]);
+    sum.push([MUT('Cost is indicative, at ' + tariff + ' ' + cur + ' per m³.')]);
+  } else {
+    sum.push([B('No readings in this period'), T('')]);
+  }
+
+  /* --- Sheet 2: Daily Consumption --- */
+  var daily = [[H('Date'), H('Consumption (m³)'), H('Cost (' + cur + ')'), H('Note')]];
+  wSeries.forEach(function(s){
+    daily.push([ T(s.d), N3(s.v), s.v==null ? T('') : N2(s.v*tariff),
+                 T(s.v==null ? 'no reading' : '') ]);
+  });
+  if (st) daily.push([B('TOTAL'), N2(st.total), N2(st.total*tariff), T('')]);
+
+  /* --- Sheet 3: Heat Map grid --- */
+  var heat = null;
+  if (hSeries.length){
+    var byM = {};
+    hSeries.forEach(function(s){
+      var k = s.d.slice(0,7);
+      if (!byM[k]) byM[k] = {};
+      byM[k][+s.d.slice(8,10)] = s.v;
+    });
+    var months = Object.keys(byM).sort().reverse();
+    var head = [H('Month')];
+    for (var d = 1; d <= 31; d++) head.push(H(String(d)));
+    head.push(H('Month total'));
+    heat = [head];
+    months.forEach(function(mk){
+      var row = [B(mk)], tot = 0;
+      for (var d2 = 1; d2 <= 31; d2++){
+        var v = byM[mk][d2];
+        row.push(v == null ? T('') : N3(v));
+        if (v != null) tot += v;
+      }
+      row.push(N2(tot));
+      heat.push(row);
+    });
+  }
+
+  var sheets = [
+    {name:'Summary',  cols:[34, 30], rows:sum},
+    {name:'Daily Consumption', cols:[14, 20, 16, 14], rows:daily, freeze:1}
+  ];
+  if (heat){
+    var hc = [12];
+    for (var i = 0; i < 31; i++) hc.push(9);
+    hc.push(14);
+    sheets.push({name:'Heat Map', cols:hc, rows:heat, freeze:1});
+  }
+
+  saveBytes(XLSX.build(sheets),
+    safeName() + '_' + stamp() + '.xlsx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
+/* ================= PDF (print-ready window) ================= */
+var PRINT_CSS =
+'*{box-sizing:border-box}' +
+'body{font-family:"Segoe UI",Arial,sans-serif;color:#243444;margin:0;background:#eef1f5;font-size:13px}' +
+'.page{max-width:940px;margin:0 auto 30px}' +
+'header.rpt{display:flex;align-items:center;gap:14px;padding:20px 28px;background:#fff;border-bottom:3px solid #3AAA35}' +
+'header.rpt .bn{font-size:20px;font-weight:800;letter-spacing:3px;color:#3AAA35;line-height:1}' +
+'header.rpt .bc{font-size:9px;letter-spacing:1.5px;color:#8090a0;margin-top:2px}' +
+'header.rpt .rt{margin-left:auto;text-align:right}' +
+'header.rpt .rt .tt{font-size:17px;font-weight:700;color:#1c3350}' +
+'header.rpt .rt .ts{font-size:11px;color:#66788c}' +
+'.sub{padding:8px 28px;background:#e8eef4;font-size:11.5px;color:#54687c;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}' +
+'.sec{background:#fff;margin:16px 28px;padding:16px 20px;border:1px solid #e4e9ef;border-radius:8px}' +
+'h2{font-size:15px;margin:0 0 12px;color:#1c3350;border-left:4px solid #3AAA35;padding-left:9px}' +
+'.cards{display:flex;gap:9px;flex-wrap:wrap}' +
+'.card{flex:1;min-width:132px;background:#f7f9fb;border:1px solid #e4e9ef;border-radius:6px;padding:9px 11px}' +
+'.cl{font-size:9.5px;color:#8090a0;text-transform:uppercase;letter-spacing:.4px}' +
+'.cv{font-size:16px;font-weight:700;color:#1c3350;margin-top:3px}' +
+'table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11.5px}' +
+'th,td{text-align:left;padding:5px 8px;border-bottom:1px solid #eef1f5}' +
+'th{background:#f4f6f9;color:#54687c;font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}' +
+'tbody tr:nth-child(even){background:#fafbfc}' +
+'.r{text-align:right}' +
+'svg{max-width:100%;height:auto}' +
+'footer{padding:14px 28px;font-size:9.5px;color:#90a0b0;text-align:center}' +
+'.toolbar{position:fixed;top:14px;right:14px}' +
+'.toolbar button{background:#3AAA35;color:#fff;border:none;padding:10px 18px;border-radius:6px;font-size:13px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.2)}' +
+'@media print{.toolbar{display:none}body{background:#fff}.sec{break-inside:avoid;page-break-inside:avoid;border:none;margin:10px 0}.page{margin:0}.sub,.sec{margin-left:0;margin-right:0}@page{margin:11mm;size:landscape}}';
+
+var LOGO_SVG = '<svg viewBox="0 0 100 100" width="42" height="42"><circle cx="50" cy="50" r="37" fill="none" stroke="#3AAA35" stroke-width="8.5" stroke-linecap="round" stroke-dasharray="207 25" transform="rotate(118 50 50)"/><circle cx="40.5" cy="70" r="9.5" fill="#3AAA35"/></svg>';
+
+function printWindow(title, bodyHtml){
+  var w = window.open('', '_blank');
+  if (!w){ alert('Please allow pop-ups for this page, then try again.'); return; }
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
+    '<style>' + PRINT_CSS + '</style></head><body>' +
+    '<div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div>' +
+    '<div class="page">' + bodyHtml +
+    '<footer>Generated by the OPERON Water Meter Command Center &middot; Data source: 3PhTech platform</footer>' +
+    '</div></body></html>';
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 700);
+}
+
+function reportHeader(title, subLeft){
+  return '<header class="rpt">' + LOGO_SVG +
+    '<div><div class="bn">OPERON</div><div class="bc">AN EDGENTA COMPANY</div></div>' +
+    '<div class="rt"><div class="tt">' + esc(title) + '</div>' +
+    '<div class="ts">3PhTech &middot; TCT &middot; Abu Dhabi</div></div></header>' +
+    '<div class="sub"><span>' + esc(subLeft) + '</span><span>Generated ' +
+    esc(new Date().toLocaleString()) + '</span></div>';
+}
+
+function exportPDF(){
+  if (!current) return;
+  var vals = wSeries.filter(function(s){ return s.v != null; }).map(function(s){ return s.v; });
+  var st = seriesStats(vals);
+  var tariff = CONFIG.TARIFF, cur = CONFIG.CURRENCY;
+
+  var cards = kpiPairs().map(function(p){
+    return '<div class="card"><div class="cl">' + esc(p[0]) + '</div><div class="cv">' + esc(p[1]) + '</div></div>';
+  }).join('');
+
+  var statTable = st
+    ? '<table><thead><tr><th>Series</th><th class="r">Latest</th><th class="r">Total</th>' +
+      '<th class="r">Highest</th><th class="r">Lowest</th><th class="r">Average</th>' +
+      '<th class="r">Days</th><th class="r">Est. cost (' + cur + ')</th></tr></thead><tbody><tr>' +
+      '<td>Water Cons.</td><td class="r">' + nf(st.cur,2) + '</td><td class="r">' + nf(st.total,2) +
+      '</td><td class="r">' + nf(st.max,3) + '</td><td class="r">' + nf(st.min,3) +
+      '</td><td class="r">' + nf(st.avg,2) + '</td><td class="r">' + st.n +
+      '</td><td class="r">' + nf(st.total*tariff,0) + '</td></tr></tbody></table>'
+    : '<p>No readings in this period.</p>';
+
+  var gaps = wSeries.filter(function(s){ return s.v == null; }).length;
+  var gapNote = gaps
+    ? '<p style="font-size:11px;color:#9a5b12;margin:8px 0 0">' + gaps + ' day' + (gaps===1?'':'s') +
+      ' in this period have no reading on the platform; they are excluded from the averages.</p>'
+    : '';
+
+  var dailyRows = wSeries.map(function(s){
+    return '<tr><td>' + s.d + '</td><td class="r">' + (s.v==null ? '&mdash;' : nf(s.v,3)) +
+           '</td><td class="r">' + (s.v==null ? '&mdash;' : nf(s.v*tariff,2)) + '</td></tr>';
+  }).join('');
+
+  var body = reportHeader('Water Consumption Report',
+      current.name + ' · ' + current.type + ' · ' + periodLabel()) +
+    '<section class="sec"><h2>At a Glance</h2><div class="cards">' + cards + '</div></section>' +
+    '<section class="sec"><h2>Daily Consumption</h2>' +
+      document.getElementById('wChart').innerHTML + statTable + gapNote + '</section>' +
+    (hSeries.length ? '<section class="sec"><h2>Daily Heat Map</h2>' +
+      document.getElementById('hMap').innerHTML +
+      '<div style="margin-top:10px">' + document.querySelector('.hmscale').outerHTML + '</div></section>' : '') +
+    '<section class="sec"><h2>Daily Detail</h2><table><thead><tr><th>Date</th>' +
+      '<th class="r">Consumption (m³)</th><th class="r">Cost (' + cur + ')</th></tr></thead><tbody>' +
+      (dailyRows || '<tr><td colspan="3">No data</td></tr>') + '</tbody></table></section>';
+
+  printWindow('Water Consumption Report - ' + current.name, body);
+}
+
+/* ================= COMPARE ================= */
+var cmpData = null;
+
+function openCompare(){
+  var list = document.getElementById('cmpList');
+  list.innerHTML = meters.map(function(m){
+    return '<label class="crow"><input type="checkbox" value="' + m.id + '"' +
+           (current && m.id === current.id ? ' checked' : '') + '><span>' + esc(m.name) +
+           '</span><span class="ct">' + esc(m.type) + '</span></label>';
+  }).join('');
+  list.querySelectorAll('input').forEach(function(cb){ cb.addEventListener('change', cmpCount); });
+  cmpCount();
+  document.getElementById('cmpResult').innerHTML = '';
+  document.getElementById('cmpExports').style.display = 'none';
+  cmpData = null;
+  document.getElementById('cmpModal').classList.add('on');
+}
+function cmpCount(){
+  var n = document.querySelectorAll('#cmpList input:checked').length;
+  document.getElementById('cmpCount').textContent = n + ' selected';
+}
+
+async function runCompare(){
+  var ids = [].map.call(document.querySelectorAll('#cmpList input:checked'), function(c){ return c.value; });
+  if (ids.length < 2){ alert('Pick at least two meters to compare.'); return; }
+  var days = +document.getElementById('cmpRange').value;
+  var from = Date.now() - days*86400000;
+  var btn = document.getElementById('cmpRun');
+  btn.disabled = true; btn.textContent = 'Loading…';
+  var res = document.getElementById('cmpResult');
+  res.innerHTML = '<div class="empty">Fetching ' + ids.length + ' meters…</div>';
+  try{
+    var items = [];
+    for (var i = 0; i < ids.length; i++){
+      var m = meters.filter(function(x){ return x.id === ids[i]; })[0];
+      var rows = await sql("select date_trunc('day'," + DT + ")::date::text as d, max(l.num_value) as v " +
+        "from ts_data l where l.device='" + m.id + "' and l.key=" + K.DAILY + " and l.ts>=" + from +
+        " group by d order by d asc");
+      var have = {}; rows.forEach(function(r){ have[r.d] = Number(r.v); });
+      items.push({m:m, have:have});
+      res.innerHTML = '<div class="empty">Fetched ' + (i+1) + ' of ' + ids.length + '…</div>';
+    }
+    // one shared calendar across every meter
+    var dates = [], last = dubaiKey(Date.now());
+    for (var t = from, g = 0; g < 4000; t += 86400000, g++){
+      var k = dubaiKey(t); dates.push(k); if (k >= last) break;
+    }
+    items.forEach(function(it){
+      it.series = dates.map(function(d){ return {d:d, v:(d in it.have) ? it.have[d] : null}; });
+      var v = it.series.filter(function(s){ return s.v != null; }).map(function(s){ return s.v; });
+      it.st = seriesStats(v) || {total:0, avg:0, max:0, min:0, n:0, cur:0};
+    });
+    cmpData = {items:items, dates:dates, days:days};
+    renderCompare();
+    document.getElementById('cmpExports').style.display = 'flex';
+  }catch(e){
+    res.innerHTML = '<div class="empty" style="color:#c0392b">Could not load: ' + esc(e.message) + '</div>';
+  }
+  btn.disabled = false; btn.textContent = 'Compare';
+}
+
+function cmpLines(items, dates){
+  var W = 900, Hh = 300, pl = 60, pr = 160, pt = 14, pb = 54, iw = W-pl-pr, ih = Hh-pt-pb;
+  var all = [];
+  items.forEach(function(it){ it.series.forEach(function(s){ if (s.v != null) all.push(s.v); }); });
+  if (!all.length) return '';
+  var max = Math.max.apply(null, all.concat([0.001])), n = dates.length;
+  var X = function(i){ return pl + (n<=1 ? iw/2 : (i/(n-1))*iw); };
+  var Y = function(v){ return pt + ih - (v/max)*ih; };
+  var g = '';
+  for (var k = 0; k <= 4; k++){
+    var y = pt + ih - (k/4)*ih;
+    g += '<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+y.toFixed(1)+'" stroke="#e6ebf1"/>' +
+         '<text x="'+(pl-7)+'" y="'+(y+4).toFixed(1)+'" text-anchor="end" font-size="10" fill="#8493a6">'+nf(max*k/4,0)+'</text>';
+  }
+  var lines = '', legend = '';
+  items.forEach(function(it, idx){
+    var c = CPAL[idx % CPAL.length], run = [];
+    var flush = function(){
+      if (run.length > 1) lines += '<polyline points="'+run.join(' ')+'" fill="none" stroke="'+c+'" stroke-width="2"/>';
+      else if (run.length === 1) lines += '<circle cx="'+run[0].split(',')[0]+'" cy="'+run[0].split(',')[1]+'" r="2.4" fill="'+c+'"/>';
+      run = [];
+    };
+    it.series.forEach(function(s, i){ if (s.v == null) flush(); else run.push(X(i).toFixed(1)+','+Y(s.v).toFixed(1)); });
+    flush();
+    legend += '<g transform="translate('+(W-pr+12)+','+(pt+4+idx*17)+')"><rect width="10" height="10" rx="2" fill="'+c+'"/>' +
+              '<text x="15" y="9" font-size="10" fill="#445">'+esc(it.m.name.slice(0,20))+'</text></g>';
+  });
+  var step = n <= 10 ? 1 : Math.ceil(n/10), xl = '';
+  dates.forEach(function(d, i){
+    if (i % step !== 0 && i !== n-1) return;
+    xl += '<text transform="translate('+X(i).toFixed(1)+','+(pt+ih+14)+') rotate(-38)" text-anchor="end" font-size="10" fill="#8493a6">'+d.slice(5)+'</text>';
+  });
+  return '<svg viewBox="0 0 '+W+' '+Hh+'" width="100%" style="min-width:560px">'+g+lines+xl+legend+'</svg>';
+}
+function cmpBars(items, grand){
+  var W = 900, rowH = 26, Hh = items.length*rowH + 14, pl = 210, pr = 90, iw = W-pl-pr;
+  var max = Math.max.apply(null, items.map(function(i){ return i.st.total; }).concat([0.001]));
+  var out = '';
+  items.forEach(function(it, i){
+    var y = 6 + i*rowH, w = Math.max(2, (it.st.total/max)*iw);
+    var pct = grand > 0 ? (it.st.total/grand)*100 : 0;
+    out += '<text x="'+(pl-8)+'" y="'+(y+13)+'" text-anchor="end" font-size="11" fill="#334">'+esc(it.m.name.slice(0,30))+'</text>' +
+           '<rect x="'+pl+'" y="'+y+'" width="'+w.toFixed(1)+'" height="17" rx="2" fill="'+CPAL[i%CPAL.length]+'"/>' +
+           '<text x="'+(pl+w+6).toFixed(1)+'" y="'+(y+13)+'" font-size="10" fill="#334">'+nf(it.st.total,1)+' ('+pct.toFixed(0)+'%)</text>';
+  });
+  return '<svg viewBox="0 0 '+W+' '+Hh+'" width="100%" style="min-width:560px">'+out+'</svg>';
+}
+
+function cmpTableHtml(items, grand){
+  var tariff = CONFIG.TARIFF, cur = CONFIG.CURRENCY;
+  var sorted = items.slice().sort(function(a,b){ return b.st.total - a.st.total; });
+  var rows = sorted.map(function(it, i){
+    var share = grand > 0 ? (it.st.total/grand)*100 : 0;
+    return '<tr><td>'+(i+1)+'</td><td><b>'+esc(it.m.name)+'</b></td><td>'+esc(it.m.type)+'</td>' +
+      '<td class="r">'+nf(it.st.total,1)+'</td><td class="r">'+share.toFixed(1)+'%</td>' +
+      '<td class="r">'+nf(it.st.total*tariff,0)+'</td><td class="r">'+nf(it.st.avg,2)+'</td>' +
+      '<td class="r">'+nf(it.st.max,2)+'</td><td class="r">'+nf(it.st.min,3)+'</td>' +
+      '<td class="r">'+it.st.n+'</td></tr>';
+  }).join('');
+  return '<table class="cmptbl"><thead><tr><th>#</th><th>Meter</th><th>Type</th>' +
+    '<th class="r">Total (m³)</th><th class="r">Share</th><th class="r">Cost ('+cur+')</th>' +
+    '<th class="r">Avg/day</th><th class="r">Peak</th><th class="r">Min</th><th class="r">Days</th></tr></thead>' +
+    '<tbody>'+rows+'</tbody><tfoot><tr><td></td><td><b>TOTAL</b></td><td></td>' +
+    '<td class="r"><b>'+nf(grand,1)+'</b></td><td class="r">100%</td>' +
+    '<td class="r"><b>'+nf(grand*tariff,0)+'</b></td><td colspan="4"></td></tr></tfoot></table>';
+}
+
+function renderCompare(){
+  var items = cmpData.items;
+  var grand = items.reduce(function(a,b){ return a + b.st.total; }, 0);
+  cmpData.grand = grand;
+  document.getElementById('cmpResult').innerHTML =
+    '<div class="cmpsec"><h4>Total consumption by meter</h4>' + cmpBars(items, grand) + '</div>' +
+    '<div class="cmpsec"><h4>Daily trend</h4>' + cmpLines(items, cmpData.dates) + '</div>' +
+    '<div class="cmpsec"><h4>Comparison table</h4>' + cmpTableHtml(items, grand) + '</div>';
+}
+
+function compareExcel(){
+  if (!cmpData) return;
+  var items = cmpData.items, grand = cmpData.grand, tariff = CONFIG.TARIFF, cur = CONFIG.CURRENCY;
+  var sorted = items.slice().sort(function(a,b){ return b.st.total - a.st.total; });
+
+  var cmp = [
+    [{v:'Meter Comparison Report', s:2}],
+    [MUT('Period'), MUT('last ' + cmpData.days + ' days (' + cmpData.dates[0] + ' to ' + cmpData.dates[cmpData.dates.length-1] + ')')],
+    [MUT('Meters compared'), MUT(String(items.length))],
+    [MUT('Generated'), MUT(new Date().toLocaleString())],
+    [],
+    [H('#'), H('Meter'), H('Type'), H('Total (m³)'), H('Share %'), H('Cost (' + cur + ')'),
+     H('Avg/day'), H('Peak'), H('Min'), H('Days with data')]
+  ];
+  sorted.forEach(function(it, i){
+    cmp.push([ N3(i+1), B(it.m.name), T(it.m.type), N2(it.st.total),
+      N2(grand > 0 ? (it.st.total/grand)*100 : 0), N2(it.st.total*tariff),
+      N2(it.st.avg), N3(it.st.max), N3(it.st.min), N3(it.st.n) ]);
+  });
+  cmp.push([T(''), B('TOTAL'), T(''), N2(grand), N2(100), N2(grand*tariff), T(''), T(''), T(''), T('')]);
+
+  /* daily matrix: one column per meter */
+  var head = [H('Date')];
+  sorted.forEach(function(it){ head.push(H(it.m.name)); });
+  head.push(H('All meters'));
+  var matrix = [head];
+  cmpData.dates.forEach(function(d, i){
+    var row = [T(d)], tot = 0, any = false;
+    sorted.forEach(function(it){
+      var v = it.series[i] ? it.series[i].v : null;
+      row.push(N3(v));
+      if (v != null){ tot += v; any = true; }
+    });
+    row.push(any ? N2(tot) : T(''));
+    matrix.push(row);
+  });
+
+  var widths = [14];
+  sorted.forEach(function(){ widths.push(18); });
+  widths.push(16);
+
+  saveBytes(XLSX.build([
+      {name:'Comparison', cols:[6,30,14,16,11,15,12,12,12,15], rows:cmp, freeze:6},
+      {name:'Daily by Meter', cols:widths, rows:matrix, freeze:1}
+    ]),
+    'meter_comparison_' + stamp() + '.xlsx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
+function comparePDF(){
+  if (!cmpData) return;
+  var items = cmpData.items, grand = cmpData.grand;
+  var top = items.slice().sort(function(a,b){ return b.st.total - a.st.total; })[0];
+  var body = reportHeader('Meter Comparison Report',
+      items.length + ' meters · last ' + cmpData.days + ' days · ' +
+      cmpData.dates[0] + ' to ' + cmpData.dates[cmpData.dates.length-1]) +
+    '<section class="sec"><h2>At a Glance</h2><div class="cards">' +
+      '<div class="card"><div class="cl">Meters compared</div><div class="cv">' + items.length + '</div></div>' +
+      '<div class="card"><div class="cl">Combined consumption</div><div class="cv">' + nf(grand,1) + ' m³</div></div>' +
+      '<div class="card"><div class="cl">Estimated cost</div><div class="cv">' + CONFIG.CURRENCY + ' ' + nf(grand*CONFIG.TARIFF,0) + '</div></div>' +
+      (top ? '<div class="card"><div class="cl">Highest user</div><div class="cv" style="font-size:13px">' + esc(top.m.name) +
+             '</div><div class="cl">' + nf(top.st.total,1) + ' m³ &middot; ' +
+             (grand>0 ? ((top.st.total/grand)*100).toFixed(0) : 0) + '% of total</div></div>' : '') +
+      '</div></section>' +
+    '<section class="sec"><h2>Total Consumption by Meter</h2>' + cmpBars(items, grand) + '</section>' +
+    '<section class="sec"><h2>Daily Trend</h2>' + cmpLines(items, cmpData.dates) + '</section>' +
+    '<section class="sec"><h2>Comparison Table</h2>' + cmpTableHtml(items, grand) + '</section>';
+  printWindow('Meter Comparison Report', body);
+}
+
+/* ---- wiring ---- */
+var CPAL = ['#2f7fbf','#3AAA35','#e8871e','#8a5cd0','#e03e4e','#17a2b8','#c99a2b','#5c6bc0','#26a69a','#ec407a','#7e57c2','#66bb6a'];
+/* Excel and PDF are reached from each panel's download menu (see panel controls).
+   Only Compare has a toolbar button of its own. */
+document.getElementById('btnCompare').onclick = openCompare;
+document.getElementById('cmpClose').onclick = function(){ document.getElementById('cmpModal').classList.remove('on'); };
+document.getElementById('cmpModal').addEventListener('click', function(e){
+  if (e.target === document.getElementById('cmpModal')) document.getElementById('cmpModal').classList.remove('on');
+});
+document.getElementById('cmpRun').onclick = runCompare;
+document.getElementById('cmpAll').onclick = function(){
+  var cbs = [].slice.call(document.querySelectorAll('#cmpList input'));
+  var all = cbs.every(function(c){ return c.checked; });
+  cbs.forEach(function(c){ c.checked = !all; });
+  this.textContent = all ? 'Select all' : 'Clear all';
+  cmpCount();
+};
+document.getElementById('cmpExcel').onclick = compareExcel;
+document.getElementById('cmpPDF').onclick = comparePDF;
+
+</script>
+<script>
+/* ============================================================
+   Panel controls: custom date range + per-panel Excel/PDF/CSV menu.
+   ============================================================ */
+
+function isoLocal(ms){ return new Date(ms - new Date().getTimezoneOffset()*60000).toISOString().slice(0,10); }
+
+/* Resolve a panel's period from its preset select or its two date inputs.
+   Returns {from,to,days,label,custom} or {err} when the dates make no sense. */
+function panelPeriod(selId, fromId, toId, unit){
+  var sel = document.getElementById(selId).value;
+  if (sel !== 'custom'){
+    var n = +sel, to = Date.now();
+    var span = (unit === 'months') ? n*31*86400000 : n*86400000;
+    return {from:to-span, to:to, days:Math.round(span/86400000), custom:false,
+            label:'last ' + n + ' ' + (unit === 'months' ? 'months' : 'days')};
+  }
+  var f = document.getElementById(fromId).value, t = document.getElementById(toId).value;
+  if (!f || !t) return {err:'Pick both a From and a To date.'};
+  var from = new Date(f + 'T00:00:00').getTime();
+  var to   = new Date(t + 'T23:59:59.999').getTime();
+  if (!(from < to)) return {err:'The From date must be earlier than the To date.'};
+  return {from:from, to:to, days:Math.max(1, Math.round((to-from)/86400000)),
+          custom:true, label:f + ' to ' + t};
+}
+function waterPeriod(){ return panelPeriod('wRange','wFrom','wTo','days'); }
+function heatPeriod(){  return panelPeriod('hRange','hFrom','hTo','months'); }
+
+/* show/hide the date inputs, seeding them from the preset that was active */
+function wireRange(selId, boxId, fromId, toId, unit, onChange){
+  var sel = document.getElementById(selId);
+  sel.onchange = function(){
+    var custom = this.value === 'custom';
+    document.getElementById(boxId).classList.toggle('on', custom);
+    if (custom){
+      var f = document.getElementById(fromId), t = document.getElementById(toId);
+      if (!t.value) t.value = isoLocal(Date.now());
+      if (!f.value){
+        var back = (unit === 'months') ? 3*31 : 30;
+        f.value = isoLocal(Date.now() - back*86400000);
+      }
+      return;                        // wait for the dates before re-querying
+    }
+    onChange();
+  };
+  [fromId, toId].forEach(function(id){
+    document.getElementById(id).addEventListener('change', function(){
+      if (document.getElementById(selId).value === 'custom') onChange();
+    });
+  });
+}
+
+/* ---- download menus ---- */
+function wireMenu(btnId, menuId, handlers){
+  var btn = document.getElementById(btnId), menu = document.getElementById(menuId);
+  btn.onclick = function(e){
+    e.stopPropagation();
+    var open = menu.classList.contains('on');
+    document.querySelectorAll('.dlmenu').forEach(function(m){ m.classList.remove('on'); });
+    menu.classList.toggle('on', !open);
+  };
+  menu.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    menu.classList.remove('on');
+    var fn = handlers[b.dataset.f]; if (fn) fn();
+  });
+}
+document.addEventListener('click', function(){
+  document.querySelectorAll('.dlmenu').forEach(function(m){ m.classList.remove('on'); });
+});
+
+/* ---- CSV (kept as the quick option in each menu) ---- */
+function waterCSV(){
+  if (!wSeries.length) return;
+  csvDownload(safeName() + '_water_cons_' + stamp() + '.csv',
+    ['Date','Water Cons. (m3)','Cost (' + CONFIG.CURRENCY + ')'],
+    wSeries.map(function(s){ return [s.d, s.v==null?'':s.v, s.v==null?'':(s.v*CONFIG.TARIFF).toFixed(2)]; }));
+}
+function heatCSV(){
+  if (!hSeries.length) return;
+  csvDownload(safeName() + '_heatmap_' + stamp() + '.csv',
+    ['Date','Daily Cons. (m3)'], hSeries.map(function(s){ return [s.d, s.v]; }));
+}
+
+/* Heat-map-only workbook, so the heat panel's menu exports what it shows. */
+function heatExcel(){
+  if (!hSeries.length){ alert('No heat map data to export.'); return; }
+  var byM = {};
+  hSeries.forEach(function(s){
+    var k = s.d.slice(0,7);
+    if (!byM[k]) byM[k] = {};
+    byM[k][+s.d.slice(8,10)] = s.v;
+  });
+  var months = Object.keys(byM).sort().reverse();
+  var head = [H('Month')];
+  for (var d = 1; d <= 31; d++) head.push(H(String(d)));
+  head.push(H('Month total'));
+  var grid = [head];
+  months.forEach(function(mk){
+    var row = [B(mk)], tot = 0;
+    for (var i = 1; i <= 31; i++){
+      var v = byM[mk][i];
+      row.push(v == null ? T('') : N3(v));
+      if (v != null) tot += v;
+    }
+    row.push(N2(tot));
+    grid.push(row);
+  });
+  var flat = [[H('Date'), H('Daily Cons. (m³)'), H('Cost (' + CONFIG.CURRENCY + ')')]];
+  hSeries.forEach(function(s){ flat.push([T(s.d), N3(s.v), N2(s.v*CONFIG.TARIFF)]); });
+
+  var w = [12];
+  for (var c = 0; c < 31; c++) w.push(9);
+  w.push(14);
+  saveBytes(XLSX.build([
+      {name:'Heat Map', cols:w, rows:grid, freeze:1},
+      {name:'Daily Values', cols:[14,20,16], rows:flat, freeze:1}
+    ]),
+    safeName() + '_heatmap_' + stamp() + '.xlsx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
+/* Heat-map-only print view. */
+function heatPDF(){
+  if (!hSeries.length){ alert('No heat map data to print.'); return; }
+  var vals = hSeries.map(function(s){ return s.v; });
+  var st = seriesStats(vals);
+  var body = reportHeader('Daily Heat Map',
+      current.name + ' · ' + current.type + ' · ' + heatPeriod().label) +
+    '<section class="sec"><h2>Daily Heat Map</h2>' +
+      document.getElementById('hMap').innerHTML +
+      '<div style="margin-top:10px">' + document.querySelector('.hmscale').outerHTML + '</div>' +
+      (st ? '<table><thead><tr><th>Series</th><th class="r">Days</th><th class="r">Total (m³)</th>' +
+            '<th class="r">Highest</th><th class="r">Lowest</th><th class="r">Average</th></tr></thead><tbody><tr>' +
+            '<td>Daily consumption</td><td class="r">' + st.n + '</td><td class="r">' + nf(st.total,1) +
+            '</td><td class="r">' + nf(st.max,3) + '</td><td class="r">' + nf(st.min,3) +
+            '</td><td class="r">' + nf(st.avg,2) + '</td></tr></tbody></table>' : '') +
+    '</section>';
+  printWindow('Daily Heat Map - ' + current.name, body);
+}
+
+/* ---- wire it all up ---- */
+wireRange('wRange','wCustom','wFrom','wTo','days',  function(){ run(loadWater); });
+wireRange('hRange','hCustom','hFrom','hTo','months',function(){ run(loadHeat);  });
+wireMenu('wExport','wMenu', {xlsx:exportExcel, pdf:exportPDF,  csv:waterCSV});
+wireMenu('hExport','hMenu', {xlsx:heatExcel,   pdf:heatPDF,    csv:heatCSV});
+
+</script>
+</body></html>

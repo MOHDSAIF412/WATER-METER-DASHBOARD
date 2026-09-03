@@ -13,10 +13,10 @@
     --glass:rgba(255,255,255,0.55); --glass2:rgba(255,255,255,0.4); --glassbrd:rgba(255,255,255,0.75); --glasshi:rgba(255,255,255,0.9); --glasssh:0 10px 30px rgba(40,60,90,0.14); --blur:blur(22px) saturate(180%);
   }
   body.night{
-    --bg:#0b0c0e; --bg2:#111217; --panel:#181b1f; --panel2:#212429; --line:#2b2f36;
-    --ok:#56c451; --warn:#ff780a; --bad:#f2495c; --muted:#8e9297;
-    --text:#dcdde0; --accent:#5794f2; --brand:#56c451; --blue:#5794f2; --yellow:#fade2a;
-    --glass:rgba(34,40,52,0.5); --glass2:rgba(28,33,44,0.42); --glassbrd:rgba(255,255,255,0.13); --glasshi:rgba(255,255,255,0.16); --glasssh:0 10px 30px rgba(0,0,0,0.45); --blur:blur(22px) saturate(160%);
+    --bg:#070e18; --bg2:#0a1524; --panel:#0e1a2b; --panel2:#13243a; --line:#1d3149;
+    --ok:#22c55e; --warn:#f59e0b; --bad:#f43f5e; --muted:#7f93ad;
+    --text:#e6eefc; --accent:#22d3ee; --accent2:#22c55e; --brand:#22c55e; --blue:#3b82f6; --yellow:#fbbf24; --purple:#a78bfa;
+    --glass:rgba(14,26,43,0.74); --glass2:rgba(10,20,34,0.62); --glassbrd:rgba(56,189,248,0.16); --glasshi:rgba(255,255,255,0.07); --glasssh:0 12px 36px rgba(0,0,0,0.55); --blur:blur(20px) saturate(150%);
   }
   body.night .mcard:hover{background:rgba(50,58,74,0.5)}
   body.night .mcard.sel{background:rgba(40,62,92,0.55)}
@@ -28,19 +28,165 @@
       linear-gradient(135deg,#eef2f8 0%,#e3e9f3 100%);}
   body.night{
     background:
-      radial-gradient(1000px 560px at 84% -10%, rgba(58,170,53,0.16), transparent 60%),
-      radial-gradient(900px 620px at 4% 110%, rgba(47,127,191,0.16), transparent 55%),
-      linear-gradient(135deg,#0c0f16 0%,#090b10 100%);}
-  header{display:flex;align-items:center;gap:14px;padding:11px 18px;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--glassbrd);box-shadow:inset 0 1px 0 var(--glasshi);z-index:6}
+      radial-gradient(1100px 600px at 80% -12%, rgba(34,211,238,0.13), transparent 62%),
+      radial-gradient(900px 640px at 2% 108%, rgba(34,197,94,0.10), transparent 58%),
+      linear-gradient(150deg,#08111e 0%,#050b14 100%);}
+  header{display:flex;align-items:center;gap:14px;padding:9px 18px;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-bottom:1px solid var(--glassbrd);box-shadow:inset 0 1px 0 var(--glasshi);z-index:6}
   header .brandmark{display:flex;align-items:center;gap:10px}
   header .brandmark svg{width:34px;height:34px;display:block}
   header .brandtext{line-height:1}
-  header .brandtext .bn{font-size:15px;font-weight:800;letter-spacing:3px;color:var(--brand)}
+  header .brandtext .bn{font-size:14px;font-weight:800;letter-spacing:2.6px;color:var(--brand)}
   header .brandtext .bc{font-size:8px;letter-spacing:1.5px;color:var(--muted);margin-top:2px}
   header .divider{width:1px;height:30px;background:var(--line);margin:0 4px}
   header .cobrand{height:52px;border-radius:9px;margin-left:12px;box-shadow:0 1px 6px rgba(0,0,0,.16);border:1px solid var(--glassbrd)}
-  header h1{font-size:15px;font-weight:600;letter-spacing:.3px}
-  header .sub{font-size:11px;color:var(--muted)}
+  header h1{font-size:13.5px;font-weight:600;letter-spacing:.3px}
+  header .sub{font-size:10.5px;color:var(--muted)}
+  /* ---------- left navigation ---------- */
+  #shell{display:flex;flex:1;min-height:0}
+  #nav{width:186px;flex-shrink:0;display:flex;flex-direction:column;gap:2px;padding:12px 10px;
+       background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+       border-right:1px solid var(--glassbrd);overflow-y:auto}
+  #nav .ngrp{font-size:8.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);
+             padding:14px 10px 6px;font-weight:700;opacity:.85}
+  #nav a{display:flex;align-items:center;gap:10px;padding:7.5px 10px;border-radius:9px;font-size:11.8px;
+         color:var(--muted);text-decoration:none;cursor:pointer;border:1px solid transparent;
+         white-space:nowrap;transition:.12s}
+  #nav a:hover{background:var(--panel2);color:var(--text)}
+  #nav a.on{background:linear-gradient(135deg,rgba(34,211,238,.16),rgba(59,130,246,.10));
+            color:var(--text);border-color:var(--glassbrd);font-weight:600}
+  #nav a .ni{width:16px;text-align:center;font-size:12.5px;opacity:.95}
+  #nav a .nb{margin-left:auto;font-size:9.5px;font-weight:700;background:var(--bad);color:#fff;
+             border-radius:9px;padding:1px 6px;min-width:18px;text-align:center}
+  #nav a .nb.zero{background:var(--panel2);color:var(--muted)}
+  #sysbox{margin-top:auto;padding:11px 12px;border:1px solid var(--glassbrd);border-radius:12px;
+          background:var(--glass2)}
+  #sysbox .sbt{font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  #sysbox .sbr{display:flex;align-items:center;gap:8px;margin-top:8px}
+  #sysbox .sbdot{width:9px;height:9px;border-radius:50%;background:var(--ok);
+                 box-shadow:0 0 0 3px rgba(34,197,94,.18);flex-shrink:0}
+  #sysbox .sbv{font-size:12px;font-weight:700;line-height:1.25}
+  #sysbox .sbs{font-size:10px;color:var(--muted)}
+  @media(max-width:1180px){ #nav{width:58px} #nav .ntxt,#nav .ngrp,#sysbox .sbv,#sysbox .sbs{display:none}
+                            #nav a{justify-content:center} #sysbox{text-align:center;padding:9px} }
+
+  /* ---------- bottom stat tiles ---------- */
+  #tiles{display:flex;gap:10px;padding:0 12px 11px;flex-shrink:0;flex-wrap:wrap}
+  .tile{flex:1;min-width:168px;display:flex;align-items:center;gap:11px;padding:11px 13px;
+        background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+        border:1px solid var(--glassbrd);border-radius:14px;box-shadow:var(--glasssh)}
+  .tile .tic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+             font-size:16px;flex-shrink:0}
+  .tile .tl{font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .tile .tv{font-size:17px;font-weight:800;line-height:1.2;margin-top:2px;letter-spacing:-.3px}
+  .tile .ts{font-size:10px;color:var(--muted);margin-top:1px}
+  .tile .tsp{margin-left:auto;flex-shrink:0}
+  .tile .up{color:var(--ok)} .tile .down{color:var(--bad)}
+
+  /* ================= v2: reference-match ================= */
+
+  /* ---- KPI cards: label / value / sub-label + round icon ---- */
+  #statrow{gap:9px;padding:10px 14px;flex-wrap:nowrap}
+  .kpi{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:14px;min-width:0;
+       background:linear-gradient(160deg,rgba(20,34,54,.92),rgba(12,22,38,.92));
+       border:1px solid var(--glassbrd);box-shadow:0 6px 20px rgba(0,0,0,.32);overflow:hidden}
+  .kpi .kmain{flex:1;min-width:0;overflow:hidden}
+  .kpi .l{font-size:8.5px;letter-spacing:.45px;font-weight:600;text-transform:uppercase;white-space:nowrap;
+          overflow:hidden;text-overflow:ellipsis}
+  /* overflow:hidden matters here: the value is nowrap, and a long money figure
+     used to spill out of .kmain and sit underneath the round icon. */
+  .kpi .v{font-weight:700;line-height:1.12;margin-top:2px;letter-spacing:-.3px;color:var(--text);
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kpi .sl{font-size:9px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kpi .kic{width:29px;height:29px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+            font-size:13px;flex-shrink:0}
+  .kpi .spark{display:none}
+  .kpi.tot  .l{color:#4a9eff} .kpi.tot  .kic{background:rgba(59,130,246,.16);box-shadow:0 0 0 1px rgba(59,130,246,.28)}
+  .kpi.ok   .l{color:var(--ok)} .kpi.ok  .kic{background:rgba(34,197,94,.16);box-shadow:0 0 0 1px rgba(34,197,94,.28)}
+  .kpi.warn .l{color:var(--warn)} .kpi.warn .kic{background:rgba(245,158,11,.16);box-shadow:0 0 0 1px rgba(245,158,11,.28)}
+  .kpi.bad  .l{color:#a78bfa} .kpi.bad  .kic{background:rgba(167,139,250,.16);box-shadow:0 0 0 1px rgba(167,139,250,.28)}
+  .kpi.wat  .l{color:#4a9eff} .kpi.wat  .kic{background:rgba(59,130,246,.16);box-shadow:0 0 0 1px rgba(59,130,246,.28)}
+  .kpi.cost .l{color:var(--ok)} .kpi.cost .kic{background:rgba(34,197,94,.16);box-shadow:0 0 0 1px rgba(34,197,94,.28)}
+  .kpi.lk   .l{color:var(--warn)} .kpi.lk  .kic{background:rgba(245,158,11,.16);box-shadow:0 0 0 1px rgba(245,158,11,.28)}
+  .kpi.alm  .l{color:var(--bad)} .kpi.alm .kic{background:rgba(244,63,94,.16);box-shadow:0 0 0 1px rgba(244,63,94,.28)}
+  .kpi.flw  .l{color:var(--accent)} .kpi.flw .kic{background:rgba(34,211,238,.16);box-shadow:0 0 0 1px rgba(34,211,238,.28)}
+  .kpi.flw  .v{color:var(--accent);font-size:16px}
+  /* #statrow prefix: the original stat-row rules sit after this block and would win otherwise.
+     The value sizes need the same treatment - without it `.kpi .v{font-size:30px}` and
+     `.kpi.cost .v{font-size:24px}` below re-inflated the numbers, which is what pushed
+     the Cost Today figure out from under its own card and into the icon. */
+  /* The money tile carries the longest string of the nine, so it gets a wider
+     share of the row - the ellipsis above is the safety net, not the plan. */
+  #statrow .kpi.cost{flex:1.4} #statrow .kpi.flw{flex:1.12} #statrow .kpi.wat{flex:1.06}
+  /* Below ~1700px nine tiles on one row start eating their own labels. The round
+     icon is decoration - the label colour already carries the status - so it is
+     the first thing to go, which keeps the row single-line and readable. */
+  @media(max-width:1700px){ #statrow .kpi .kic{display:none} #statrow .kpi{gap:0;padding:9px 11px} }
+  #statrow .kpi .v{font-size:19px}
+  #statrow .kpi.wat  .v{font-size:17px}
+  #statrow .kpi.cost .v{font-size:13.5px}
+  #statrow .kpi.flw  .v{font-size:13.5px;color:var(--accent)}
+  #statrow .kpi.cost .v{color:var(--ok)} #statrow .kpi.alm .v{color:var(--bad)} #statrow .kpi.lk .v{color:var(--warn)}
+  #statrow .kpi.ok .v{color:var(--ok)} #statrow .kpi.warn .v{color:var(--warn)}
+  #statrow .kpi.bad .v{color:#a78bfa} #statrow .kpi.tot .v{color:#4a9eff} #statrow .kpi.wat .v{color:#4a9eff}
+
+  /* ---- map wrapped in a titled panel ---- */
+  main{padding:0 14px 12px;gap:12px}
+  #mapPanel{flex:1;min-width:0;display:flex;flex-direction:column;border-radius:16px;overflow:hidden;
+            background:var(--glass);border:1px solid var(--glassbrd);box-shadow:var(--glasssh)}
+  .mph{display:flex;align-items:center;gap:10px;padding:11px 15px;border-bottom:1px solid var(--glassbrd);
+       flex-shrink:0}
+  .mph .mpt{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--text)}
+  .mph .mpc{margin-left:auto;display:flex;gap:8px;align-items:center}
+  #viewSel{appearance:none;-webkit-appearance:none;background:var(--panel2);border:1px solid var(--glassbrd);
+           border-radius:9px;padding:6px 26px 6px 11px;font-size:11.5px;color:var(--text);cursor:pointer}
+  .mpbtn{background:var(--panel2);border:1px solid var(--glassbrd);color:var(--muted);border-radius:9px;
+         padding:5px 9px;font-size:12px;cursor:pointer}
+  .mpbtn:hover{color:var(--text);border-color:var(--accent)}
+  #scene{border-radius:0}
+  #mapCtl{position:absolute;right:13px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:7px;z-index:6}
+  #mapCtl button{width:34px;height:34px;border-radius:11px;background:var(--glass);
+                 backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+                 border:1px solid var(--glassbrd);color:var(--text);font-size:15px;cursor:pointer;
+                 display:flex;align-items:center;justify-content:center}
+  #mapCtl button:hover{border-color:var(--accent);color:var(--accent)}
+  #legend{bottom:auto;top:14px;left:14px;border-radius:12px;background:rgba(6,13,24,.55);
+          border-color:rgba(255,255,255,.07);padding:10px 13px}
+  #legend div{font-size:11px;color:#dbe6f5;margin:4px 0;gap:9px}
+  #legend .dot{width:8px;height:8px;box-shadow:0 0 7px currentColor}
+  #hint{display:none}
+
+  /* ---- Live Alerts ---- */
+  #sidebar{width:330px;border-left:none;border-radius:16px;overflow:hidden;
+           background:var(--glass);border:1px solid var(--glassbrd);box-shadow:var(--glasssh)}
+  #sidebar h2{padding:13px 15px 9px;align-items:center}
+  #sidebar h2 .vall{font-size:10.5px;color:var(--accent);cursor:pointer;text-transform:none;letter-spacing:0}
+  #sidebar h2 .vall:hover{text-decoration:underline}
+  #laFilters{padding:0 13px 9px;gap:5px}
+  #laFilters button{border-radius:9px;padding:6px 5px}
+  #search{margin:0 13px 9px;width:calc(100% - 26px)}
+  .mcard{border-left:3px solid var(--muted)}
+  .mcard.ok{border-left-color:var(--ok)}
+  .mcard.warn{border-left-color:var(--warn)}
+  .mcard.bad{border-left-color:var(--bad)}
+  #laFoot{padding:9px 15px;border-top:1px solid var(--glassbrd);text-align:right;flex-shrink:0}
+  #laFoot span{font-size:10.5px;color:var(--accent);cursor:pointer}
+  #laFoot span:hover{text-decoration:underline}
+
+  /* ---- analytics panels ---- */
+  #analytics{height:224px;gap:12px;padding:0 14px 12px;border-top:none}
+  .panel{border-radius:16px;background:var(--glass);border:1px solid var(--glassbrd);box-shadow:var(--glasssh)}
+  .panel .ph{font-size:10.8px;font-weight:700;letter-spacing:.4px}
+  .pfoot{padding:0 13px 9px;margin-top:auto}
+  .pfoot span{font-size:10.5px;color:var(--accent);cursor:pointer}
+  .pfoot span:hover{text-decoration:underline}
+  #pConn{width:250px;flex:none} #pStatus{width:262px;flex:none}
+  #pZones{width:auto;flex:1;min-width:280px} #pTrend{width:auto;flex:1.25;min-width:320px}
+  #trendBody{padding:0;display:block}
+
+  /* ---- bottom tiles: add the vs-yesterday delta ---- */
+  .tile .td{font-size:10px;font-weight:700;margin-top:2px}
+  .tile .td.up{color:var(--ok)} .tile .td.down{color:var(--bad)} .tile .td.flat{color:var(--muted)}
+
   /* stat row (Grafana stat panels) */
   #statrow{display:flex;gap:10px;padding:11px 12px;background:transparent;flex-shrink:0;flex-wrap:wrap}
   .kpi{flex:1;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:16px;padding:11px 15px;position:relative;overflow:hidden;min-width:0;box-shadow:var(--glasssh), inset 0 1px 0 var(--glasshi)}
@@ -60,26 +206,40 @@
   #conn{font-size:11px;padding:5px 12px;border-radius:20px;border:1px solid var(--glassbrd);background:var(--glass2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);color:var(--muted);white-space:nowrap;cursor:default;font-weight:600}
   #conn.live{color:var(--ok);border-color:var(--ok)} #conn.snap{color:var(--warn);border-color:var(--warn)} #conn.err{color:var(--bad);border-color:var(--bad)}
   main{flex:1;display:flex;min-height:0}
+  #body{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
   #scene{flex:1;position:relative}
   #scene canvas{display:block}
   #sidebar{width:340px;background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border-left:1px solid var(--glassbrd);box-shadow:inset 1px 0 0 var(--glasshi);display:flex;flex-direction:column}
-  #sidebar h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:12px 16px 6px;display:flex;justify-content:space-between}
-  #search{margin:0 12px 8px;padding:9px 12px;background:var(--bg2);border:1px solid var(--line);border-radius:4px;color:var(--text);font-size:13px;outline:none;transition:.15s}
+  #sidebar h2{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);padding:11px 15px 6px;display:flex;justify-content:space-between}
+  #sidebar h2 .lah{color:var(--text);font-weight:800;letter-spacing:1px;display:flex;align-items:center;gap:7px}
+  #sidebar h2 .ladot{width:7px;height:7px;border-radius:50%;background:var(--ok);
+                     box-shadow:0 0 0 3px rgba(34,197,94,.20);animation:lapulse 2.2s infinite}
+  @keyframes lapulse{0%,100%{opacity:1}50%{opacity:.35}}
+  #laFilters{display:flex;gap:6px;padding:0 14px 8px;flex-wrap:wrap}
+  #laFilters button{flex:1;min-width:0;font-size:10px;font-weight:600;padding:6px 5px;border-radius:8px;
+                    border:1px solid var(--glassbrd);background:var(--glass2);color:var(--muted);cursor:pointer;
+                    white-space:nowrap;transition:.12s}
+  #laFilters button:hover{color:var(--text);border-color:var(--accent)}
+  #laFilters button.sel{background:linear-gradient(135deg,rgba(34,211,238,.20),rgba(59,130,246,.12));
+                        color:var(--text);border-color:var(--accent)}
+  #laFilters button .c{opacity:.75;font-weight:700;margin-left:2px}
+  #laEmpty{padding:34px 16px;text-align:center;color:var(--muted);font-size:12px}
+  #search{margin:0 12px 8px;padding:7px 11px;background:var(--bg2);border:1px solid var(--line);border-radius:4px;color:var(--text);font-size:12px;outline:none;transition:.15s}
   #search:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(87,148,242,0.18)}
   #meters{flex:1;overflow-y:auto;padding:0 8px 12px}
   #meters::-webkit-scrollbar{width:6px} #meters::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
-  .mcard{background:var(--glass2);border:1px solid var(--glassbrd);border-left:3px solid var(--ok);border-radius:12px;padding:10px 12px;margin:7px;cursor:pointer;transition:.16s;box-shadow:0 4px 14px rgba(30,50,80,.08), inset 0 1px 0 var(--glasshi)}
+  .mcard{background:var(--glass2);border:1px solid var(--glassbrd);border-left:3px solid var(--ok);border-radius:12px;padding:8px 11px;margin:6px;cursor:pointer;transition:.16s;box-shadow:0 4px 14px rgba(30,50,80,.08), inset 0 1px 0 var(--glasshi)}
   .mcard:hover{border-color:var(--accent);transform:translateX(-2px)}
   .mcard.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent), 0 6px 18px rgba(30,50,80,.12)}
   .mcard.warn{border-left-color:var(--warn)} .mcard.bad{border-left-color:var(--bad)}
   .mcard .row1{display:flex;justify-content:space-between;align-items:center;gap:8px}
-  .mcard .name{font-weight:600;font-size:13.5px;line-height:1.2}
+  .mcard .name{font-weight:600;font-size:12.4px;line-height:1.25}
   .mcard .type{font-size:10px;color:var(--muted)}
-  .badge{font-size:9.5px;padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:.4px;white-space:nowrap}
+  .badge{font-size:9px;padding:2px 7px;border-radius:10px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
   .badge.ok{background:rgba(86,196,81,.16);color:var(--ok)}
   .badge.warn{background:rgba(255,120,10,.16);color:var(--warn)}
   .badge.bad{background:rgba(242,73,92,.16);color:var(--bad)}
-  .mcard .row2{display:flex;gap:12px;margin-top:7px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+  .mcard .row2{display:flex;gap:10px;margin-top:6px;font-size:10.3px;color:var(--muted);flex-wrap:wrap}
   .mcard .row2 b{color:var(--text);font-weight:600}
   .mcard .actions{margin-top:8px;display:none}
   .mcard.sel .actions{display:flex;gap:8px}
@@ -156,11 +316,19 @@
   #dLeak .lnrow{display:flex;justify-content:space-between;padding:3px 4px;border-bottom:1px solid var(--line)}
   #dLeak .lnrow b{color:var(--warn)}
   #dLeak .lkspin{width:22px;height:22px;margin:14px auto}
-  .kpi.lk{cursor:pointer} .kpi.lk:hover{border-color:var(--warn)}
-  #statrow .kpi.lk.active{box-shadow:inset 0 0 0 1px var(--warn)}
+  /* Each stat tile is a control: the status ones filter the alert list, the rest
+     open the panel the number comes from. .active marks the tile driving the list. */
+  #statrow .kpi{cursor:pointer;transition:border-color .15s,transform .15s,box-shadow .15s}
+  #statrow .kpi:hover{border-color:var(--accent);transform:translateY(-1px)}
+  #statrow .kpi:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  #statrow .kpi.ok.active   {box-shadow:inset 0 0 0 1.5px var(--ok)}
+  #statrow .kpi.warn.active {box-shadow:inset 0 0 0 1.5px var(--warn)}
+  #statrow .kpi.bad.active  {box-shadow:inset 0 0 0 1.5px var(--bad)}
+  #statrow .kpi.lk.active   {box-shadow:inset 0 0 0 1.5px var(--warn)}
+  #statrow .kpi.tot.active  {box-shadow:inset 0 0 0 1.5px var(--blue)}
   /* analytics strip (Grafana panels) */
   #analytics{display:flex;gap:10px;padding:10px 12px;background:transparent;border-top:1px solid var(--glassbrd);height:196px;flex-shrink:0;overflow-x:auto}
-  #pZones{width:272px;flex:none} #pTrend{width:224px;flex:none} #pConsume{min-width:300px}
+  #pZones{width:300px;flex:none} #pTrend{width:236px;flex:none} #pConsume{min-width:320px}
   #zonesSvg{width:100%;height:100%;display:block}
   .z-lbl{fill:var(--muted);font-size:9px} .z-val{fill:var(--text);font-size:9px;font-weight:600}
   #trendBody{display:flex;flex-direction:column;justify-content:center;gap:12px}
@@ -179,7 +347,7 @@
   #donutLegend .dl{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:5px 0}
   #donutLegend .dl .k{display:flex;align-items:center;gap:7px;color:var(--muted)}
   #donutLegend .dl b{color:var(--text)}
-  #pConsume{flex:1} #pConsume .pb{overflow:hidden}
+  #pConsume{flex:1;max-width:520px} #pConsume .pb{overflow:hidden}
   #barsSvg{width:100%;height:100%;display:block}
   .gbar-lbl{fill:var(--muted);font-size:9px} .gbar-val{fill:var(--text);font-size:9px;font-weight:600}
   #analytics .cempty{color:var(--muted);font-size:12px;display:flex;align-items:center;justify-content:center;height:100%}
@@ -338,23 +506,66 @@
     </div>
   </div>
 </div>
+<div id="shell">
+<nav id="nav">
+  <a data-nav="overview" class="on"><span class="ni">&#127968;</span><span class="ntxt">Overview</span></a>
+  <div class="ngrp">Monitoring</div>
+  <a data-nav="meters"><span class="ni">&#128202;</span><span class="ntxt">Meters</span></a>
+  <a data-nav="livemap"><span class="ni">&#128506;</span><span class="ntxt">Live Map</span></a>
+  <a data-nav="alarms"><span class="ni">&#128276;</span><span class="ntxt">Alarms</span></a>
+  <a data-nav="leak"><span class="ni">&#128167;</span><span class="ntxt">Leak Watch</span></a>
+  <a data-nav="logs"><span class="ni">&#128220;</span><span class="ntxt">Logs</span></a>
+  <div class="ngrp">Analytics</div>
+  <a data-nav="consume"><span class="ni">&#128200;</span><span class="ntxt">Consumption</span></a>
+  <a data-nav="reports"><span class="ni">&#128196;</span><span class="ntxt">Reports</span></a>
+  <a data-nav="trends"><span class="ni">&#128201;</span><span class="ntxt">Trends</span></a>
+  <a data-nav="compare"><span class="ni">&#9878;</span><span class="ntxt">Comparisons</span></a>
+  <div class="ngrp">Management</div>
+  <a data-nav="devices"><span class="ni">&#128225;</span><span class="ntxt">Devices</span></a>
+  <a data-nav="groups"><span class="ni">&#128101;</span><span class="ntxt">Groups</span></a>
+  <a data-nav="users"><span class="ni">&#128100;</span><span class="ntxt">Users</span></a>
+  <a data-nav="settings"><span class="ni">&#9881;</span><span class="ntxt">Settings</span></a>
+  <div id="sysbox">
+    <div class="sbt">System Status</div>
+    <div class="sbr"><span class="sbdot" id="sysDot"></span>
+      <div><div class="sbv" id="sysVal">All Systems</div><div class="sbs" id="sysSub">Operational</div></div>
+    </div>
+  </div>
+</nav>
+<div id="body">
 <div id="statrow">
-  <div class="kpi tot"><div class="l">Total Meters</div><div class="v" id="kTot">–</div><div class="spark"></div></div>
-  <div class="kpi ok"><div class="l">Flowing</div><div class="v" id="kOk">–</div><div class="spark"></div></div>
-  <div class="kpi warn"><div class="l">No Flow</div><div class="v" id="kWarn">–</div><div class="spark"></div></div>
-  <div class="kpi bad"><div class="l">Offline</div><div class="v" id="kBad">–</div><div class="spark"></div></div>
-  <div class="kpi wat"><div class="l">m³ Consumed Today</div><div class="v" id="kDay">–</div><div class="spark"></div></div>
-  <div class="kpi cost"><div class="l">Cost Today</div><div class="v" id="kCost">–</div><div class="spark"></div></div>
-  <div class="kpi lk"><div class="l">Leak Watch</div><div class="v" id="kLeak">–</div><div class="spark"></div></div>
-  <div class="kpi alm"><div class="l">Active Alarms</div><div class="v" id="kAlm">–</div><div class="spark"></div></div>
+  <div class="kpi tot"><div class="kmain"><div class="l">Total Meters</div><div class="v" id="kTot">–</div><div class="sl">All Installed</div></div><div class="kic">💧</div></div>
+  <div class="kpi ok"><div class="kmain"><div class="l">Flowing</div><div class="v" id="kOk">–</div><div class="sl">Meters</div></div><div class="kic">〰</div></div>
+  <div class="kpi warn"><div class="kmain"><div class="l">No Flow</div><div class="v" id="kWarn">–</div><div class="sl">Meters</div></div><div class="kic">⚠</div></div>
+  <div class="kpi bad"><div class="kmain"><div class="l">Offline</div><div class="v" id="kBad">–</div><div class="sl">Meter</div></div><div class="kic">✖</div></div>
+  <div class="kpi wat"><div class="kmain"><div class="l">Consumed Today</div><div class="v" id="kDay">–</div><div class="sl">Cubic Meters</div></div><div class="kic">📊</div></div>
+  <div class="kpi cost"><div class="kmain"><div class="l">Cost Today</div><div class="v" id="kCost">–</div><div class="sl">Total Cost</div></div><div class="kic">💰</div></div>
+  <div class="kpi lk"><div class="kmain"><div class="l">Leak Watch</div><div class="v" id="kLeak">–</div><div class="sl">Alerts</div></div><div class="kic">🚨</div></div>
+  <div class="kpi alm"><div class="kmain"><div class="l">Active Alarms</div><div class="v" id="kAlm">–</div><div class="sl">Total</div></div><div class="kic">🔔</div></div>
+  <div class="kpi flw"><div class="kmain"><div class="l">Avg Flow Rate</div><div class="v" id="kFlow">–</div><div class="sl">Live Average</div></div><div class="kic">📈</div></div>
 </div>
 <main>
+  <div id="mapPanel">
+  <div class="mph"><span class="mpt">Water Network 3D Map</span>
+    <div class="mpc">
+      <select id="viewSel"><option value="3d">3D View</option><option value="top">Top View</option></select>
+      <button class="mpbtn" id="mapFull" title="Fullscreen">&#9974;</button>
+    </div>
+  </div>
   <div id="scene">
+    <div id="mapCtl">
+      <button id="mapZoomIn"  title="Zoom in">+</button>
+      <button id="mapZoomOut" title="Zoom out">&#8722;</button>
+      <button id="mapReset"   title="Reset view">&#8635;</button>
+      <button id="mapLayers"  title="Toggle legend">&#9707;</button>
+    </div>
     <div id="hint">Drag to orbit • Scroll to zoom • Click a meter to focus & report</div>
     <div id="legend">
-      <div><span class="dot" style="background:#56c451"></span> Flowing — water moving</div>
-      <div><span class="dot" style="background:#ff780a"></span> Connected, no flow (0)</div>
-      <div><span class="dot" style="background:#f2495c"></span> Offline — no reading</div>
+      <div><span class="dot" style="background:#22c55e"></span> Flowing</div>
+      <div><span class="dot" style="background:#f5b81e"></span> No Flow</div>
+      <div><span class="dot" style="background:#f43f5e"></span> Offline</div>
+      <div><span class="dot" style="background:#4a9eff"></span> Connected</div>
+      <div><span class="dot" style="background:#8794a8"></span> No Reading</div>
     </div>
     <div id="tip"></div>
     <div id="detail">
@@ -397,10 +608,20 @@
       </details>
     </div>
   </div>
+  </div>
   <div id="sidebar">
-    <h2><span>Meters</span><span id="upd" style="text-transform:none;letter-spacing:0"></span></h2>
+    <h2><span class="lah"><span class="ladot"></span>Live Alerts</span><span class="vall" id="fAlerts">View all alerts &#8594;</span></h2>
+    <div style="padding:0 15px 6px;font-size:10px;color:var(--muted)" id="upd"></div>
+    <div id="laFilters">
+      <button class="laf sel" data-f="all">All<span class="c" id="cAll"></span></button>
+      <button class="laf" data-f="ok">Flowing<span class="c" id="cOk"></span></button>
+      <button class="laf" data-f="leak">Leak<span class="c" id="cLeak"></span></button>
+      <button class="laf" data-f="warn">No Flow<span class="c" id="cWarn"></span></button>
+      <button class="laf" data-f="bad">Offline<span class="c" id="cBad"></span></button>
+    </div>
     <input id="search" placeholder="Search meter…">
     <div id="meters"><div class="spin" style="margin-top:40px"></div></div>
+    <div id="laFoot"><span id="fMeters">View all meters &#8594;</span></div>
   </div>
   <div id="alarmDrawer">
     <div class="adh">
@@ -427,22 +648,22 @@
         <div class="cs"><div class="cs-l">Disconnected</div><div class="cs-v" id="connNo">–</div></div>
       </div>
     </div>
+    <div class="pfoot"><span id="fConn">View details &#8594;</span></div>
   </div>
   <div class="panel" id="pStatus">
     <div class="ph">Meter Status Distribution</div>
     <div class="pb"><svg id="donut" viewBox="0 0 100 100"></svg><div id="donutLegend"></div></div>
+    <div class="pfoot"><span id="fStatus">View details &#8594;</span></div>
   </div>
   <div class="panel" id="pZones">
     <div class="ph">Consumption by Zone — Today</div>
     <div class="pb"><svg id="zonesSvg" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div class="pfoot"><span id="fZones">View full report &#8594;</span></div>
   </div>
   <div class="panel" id="pTrend">
-    <div class="ph">Consumption Trend</div>
+    <div class="ph">Consumption Trend (m³)</div>
     <div class="pb" id="trendBody"></div>
-  </div>
-  <div class="panel" id="pConsume">
-    <div class="ph">Top Consumers — Consumption Today (m³)</div>
-    <div class="pb"><svg id="barsSvg" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div class="pfoot"><span id="fTrend">View analytics &#8594;</span></div>
   </div>
 </div>
 <div id="panelModal">
@@ -451,6 +672,7 @@
     <div id="pmBody"></div>
   </div>
 </div>
+</div></div>
 
 <script>
 /* ============================================================
@@ -1223,28 +1445,31 @@ async function loadAnalytics(){
     baselineMap={}; base.forEach(r=>baselineMap[r.id]=Number(r.avg30));
   }catch(e){}
   try{
+    trend.err=null;
     const wk=await sql(`select wk, round(sum(daily)::numeric,0) as total from (
       select date_trunc('week', day)::date as wk, daily from (
         select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
         from ts_data l join devices d on d.id=l.device
         where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-28*86400000}
         group by day, l.device) a) b group by wk order by wk desc limit 3`);
+    trend.wk = wk[1]?Number(wk[1].total):null; trend.lastWk = wk[2]?Number(wk[2].total):null;
+  }catch(e){ trend.err=e.message; console.warn('trend (week) failed:', e.message); }
+  try{
     const mo=await sql(`select mon, round(sum(daily)::numeric,0) as total from (
       select to_char(day,'YYYY-MM') as mon, daily from (
         select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
         from ts_data l join devices d on d.id=l.device
         where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-95*86400000}
         group by day, l.device) a) b group by mon order by mon desc limit 2`);
-    trend.wk = wk[1]?Number(wk[1].total):null; trend.lastWk = wk[2]?Number(wk[2].total):null;
     trend.moMTD = mo[0]?Number(mo[0].total):null; trend.lastMo = mo[1]?Number(mo[1].total):null;
-  }catch(e){}
+  }catch(e){ trend.err=e.message; console.warn('trend (month) failed:', e.message); }
   renderUI(meters); renderCharts(meters); renderTrend();
 }
 
 /* ================= 3D SCENE ================= */
 const sceneEl=document.getElementById('scene');
 const scene=new THREE.Scene();
-let THEME=(()=>{try{return localStorage.getItem('wm_theme')||'day';}catch(e){return 'day';}})();
+let THEME=(()=>{try{return localStorage.getItem('wm_theme')||'night';}catch(e){return 'night';}})();
 const T3={
   day:  { bg:0xe9eef4, near:95, far:240, grid:[0xc2cddb,0xd8dfe9], gridOp:0.7,  bubble:0x2f7fbf, labelBg:'rgba(255,255,255,0.96)', labelTx:'#243444' },
   night:{ bg:0x0b1018, near:95, far:250, grid:[0x2a3550,0x1b2336], gridOp:0.65, bubble:0xffffff, labelBg:'rgba(18,26,42,0.94)',   labelTx:'#eaf2ff' }
@@ -1260,6 +1485,74 @@ scene.add(new THREE.AmbientLight(0xffffff,0.85));
 const dl=new THREE.DirectionalLight(0xffffff,0.85); dl.position.set(30,50,25); scene.add(dl);
 const dl2=new THREE.DirectionalLight(0x88b0e0,0.45); dl2.position.set(-40,15,-25); scene.add(dl2);
 let gridHelper=new THREE.GridHelper(200,60,T3[THEME].grid[0],T3[THEME].grid[1]); gridHelper.material.opacity=T3[THEME].gridOp; gridHelper.material.transparent=true; scene.add(gridHelper);
+
+/* ---- procedural night-city ground, drawn once to a canvas texture ----
+   Gives the map the lit aerial backdrop from the reference without pulling
+   in any external imagery. Seeded, so it looks identical on every load.   */
+function cityTexture(){
+  var S = 1024, c = document.createElement('canvas');
+  c.width = c.height = S;
+  var x = c.getContext('2d');
+  var seed = 20260827;
+  function rnd(){ seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
+
+  x.fillStyle = '#040a12'; x.fillRect(0, 0, S, S);
+
+  var step = S / 16;
+  for (var i = 0; i < 16; i++){
+    for (var j = 0; j < 16; j++){
+      var pad = 3 + rnd() * 7;
+      x.fillStyle = 'rgba(13,25,43,' + (0.45 + rnd() * 0.5) + ')';
+      x.fillRect(i*step + pad, j*step + pad, step - pad*2, step - pad*2);
+    }
+  }
+  x.strokeStyle = 'rgba(52,96,142,0.26)'; x.lineWidth = 2;
+  for (var k = 0; k <= 16; k++){
+    x.beginPath(); x.moveTo(k*step, 0); x.lineTo(k*step, S); x.stroke();
+    x.beginPath(); x.moveTo(0, k*step); x.lineTo(S, k*step); x.stroke();
+  }
+  x.strokeStyle = 'rgba(120,180,235,0.30)'; x.lineWidth = 3.5;
+  [3,9,13].forEach(function(i){ x.beginPath(); x.moveTo(i*step,0); x.lineTo(i*step,S); x.stroke(); });
+  [5,11].forEach(function(i){ x.beginPath(); x.moveTo(0,i*step); x.lineTo(S,i*step); x.stroke(); });
+
+  for (var n = 0; n < 3000; n++){
+    var px = rnd()*S, py = rnd()*S, sz = rnd() < 0.86 ? 1 : 2;
+    x.fillStyle = rnd() < 0.76
+      ? 'rgba(150,200,255,' + (0.22 + rnd()*0.55) + ')'
+      : 'rgba(255,208,140,' + (0.22 + rnd()*0.48) + ')';
+    x.fillRect(px, py, sz, sz);
+  }
+  var t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(2, 2);
+  return t;
+}
+
+var cityPlane = (function(){
+  var m = new THREE.Mesh(
+    new THREE.PlaneGeometry(430, 430),
+    new THREE.MeshBasicMaterial({ map:cityTexture(), transparent:true, opacity:0.95, depthWrite:false })
+  );
+  m.rotation.x = -Math.PI/2;
+  m.position.y = -0.14;
+  scene.add(m);
+  return m;
+})();
+
+/* the city gives the ground its structure, so the wire grid can step back */
+function applyCityForTheme(t){
+  var night = (t === 'night');
+  cityPlane.visible = night;
+  if (typeof gridHelper !== 'undefined' && gridHelper && gridHelper.material){
+    gridHelper.material.opacity = night ? 0.16 : (T3[t] ? T3[t].gridOp : 0.7);
+  }
+  if (night){
+    scene.background.set(0x040a12);
+    if (scene.fog){ scene.fog.color.set(0x040a12); scene.fog.near = 110; scene.fog.far = 300; }
+  }
+}
+applyCityForTheme(THEME);
+
 
 let camTheta=0.85,camPhi=1.0,camR=90,camTarget=new THREE.Vector3(0,3,0),camTargetGoal=camTarget.clone(),camRGoal=90;
 function updateCam(){
@@ -1432,6 +1725,7 @@ function ago(ms){const s=(Date.now()-ms)/1000;
   if(s<90)return Math.round(s)+'s ago'; if(s<5400)return Math.round(s/60)+'m ago';
   if(s<172800)return (s/3600).toFixed(1)+'h ago'; return Math.round(s/86400)+'d ago';}
 let leakFilter=false;
+let alertFilter='all';   // all | leak | warn | bad
 function renderUI(ms){
   let ok=0,warn=0,bad=0,day=0,leaks=0;
   const q=(document.getElementById('search').value||'').toLowerCase();
@@ -1440,6 +1734,10 @@ function renderUI(ms){
   ms.forEach(m=>{const st=statusOf(m); if(st==='ok')ok++;else if(st==='warn')warn++;else bad++; day+=m.daily||0;
     const leak=leakOf(m); if(leak)leaks++;
     if(leakFilter && !leak)return;
+    if(alertFilter==='leak' && !leak) return;
+    if(alertFilter==='ok'   && st!=='ok')   return;
+    if(alertFilter==='warn' && st!=='warn') return;
+    if(alertFilter==='bad'  && st!=='bad')  return;
     if(q&&!m.name.toLowerCase().includes(q))return;
     const hasAlarm=alarmed.has(m.name);
     const el=document.createElement('div');
@@ -1450,6 +1748,10 @@ function renderUI(ms){
     el.onclick=()=>focusMeter(m.id,false);
     list.appendChild(el);
   });
+  const setc=(id,v)=>{const e=document.getElementById(id); if(e) e.textContent=v?' '+v:'';};
+  setc('cAll',ms.length); setc('cOk',ok); setc('cLeak',leaks); setc('cWarn',warn); setc('cBad',bad);
+  if(!list.children.length)
+    list.innerHTML='<div id="laEmpty">Nothing matches this filter.<br>All clear here.</div>';
   kTot.textContent=ms.length; kOk.textContent=ok; kWarn.textContent=warn; kBad.textContent=bad;
   kDay.textContent=day.toFixed(0);
   const kc=document.getElementById('kCost'); if(kc) kc.textContent=fmtCost(day);
@@ -1457,8 +1759,75 @@ function renderUI(ms){
 }
 window.dlReport=id=>{const m=meters.find(x=>x.id===id); if(m)downloadReport(m);};
 document.getElementById('search').addEventListener('input',()=>renderUI(meters));
-const kLeakPanel=document.querySelector('.kpi.lk');
-if(kLeakPanel) kLeakPanel.onclick=()=>{ leakFilter=!leakFilter; kLeakPanel.classList.toggle('active',leakFilter); document.getElementById('search').value=''; renderUI(meters); };
+/* ================= stat tiles + chips drive one filter =================
+   The chips and the KPI tiles used to run on two separate switches (alertFilter
+   and leakFilter), which is why only Leak Watch ever did anything. Everything now
+   goes through setAlertFilter, so a chip and its tile are the same control and
+   always show the same state. leakFilter stays defined for renderUI, pinned false.
+   ====================================================================== */
+
+/* which tile owns which filter - the rest of the tiles open a panel instead */
+const KPI_FILTER={ ok:'ok', warn:'warn', bad:'bad', lk:'leak', tot:'all' };
+
+function syncFilterUI(){
+  document.querySelectorAll('#laFilters button').forEach(b=>
+    b.classList.toggle('sel', b.dataset.f===alertFilter));
+  document.querySelectorAll('#statrow .kpi').forEach(k=>k.classList.remove('active'));
+  for(const cls in KPI_FILTER){
+    if(KPI_FILTER[cls]!==alertFilter || alertFilter==='all') continue;
+    const k=document.querySelector('#statrow .kpi.'+cls); if(k) k.classList.add('active');
+  }
+}
+
+/* Clicking the tile that is already filtering clears it, so no tile is a dead end. */
+function setAlertFilter(f){
+  alertFilter = (alertFilter===f && f!=='all') ? 'all' : f;
+  leakFilter  = false;
+  const sb=document.getElementById('search'); if(sb) sb.value='';
+  renderUI(meters);
+  syncFilterUI();
+  const list=document.getElementById('meters'); if(list) list.scrollTop=0;
+}
+window.setAlertFilter=setAlertFilter;
+
+document.querySelectorAll('#laFilters button').forEach(b=>{
+  b.onclick=()=>setAlertFilter(b.dataset.f);
+});
+
+/* Enlarge an analytics panel in the existing zoom modal. */
+function showPanel(id){
+  if(typeof closePanel==='function') closePanel();
+  const p=document.getElementById(id);
+  if(p && typeof openPanel==='function') openPanel(p);
+}
+window.showPanel=showPanel;
+
+function openAlarmDrawer(){
+  const d=document.getElementById('alarmDrawer'); if(d) d.classList.add('open');
+}
+window.openAlarmDrawer=openAlarmDrawer;
+
+/* Every tile now leads somewhere: status tiles filter the list, the measurement
+   tiles open the panel the figure is broken down in. */
+const KPI_ACTION={
+  tot:  ()=>setAlertFilter('all'),
+  ok:   ()=>setAlertFilter('ok'),
+  warn: ()=>setAlertFilter('warn'),
+  bad:  ()=>setAlertFilter('bad'),
+  lk:   ()=>setAlertFilter('leak'),
+  alm:  ()=>openAlarmDrawer(),
+  wat:  ()=>showPanel('pZones'),   // today's m3 broken out per zone
+  cost: ()=>showPanel('pZones'),   // same panel carries the AED per zone
+  flw:  ()=>showPanel('pTrend')
+};
+Object.keys(KPI_ACTION).forEach(cls=>{
+  const el=document.querySelector('#statrow .kpi.'+cls);
+  if(!el) return;
+  el.onclick=KPI_ACTION[cls];
+  el.tabIndex=0;
+  el.setAttribute('role','button');
+  el.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); KPI_ACTION[cls](); } };
+});
 
 /* ---- click an analytics panel to enlarge it ---- */
 let enlargedPanel=null, enlargedAnchor=null;
@@ -1513,10 +1882,11 @@ function renderCharts(ms){
     off+=len; });
   const tc=themeC();
   document.getElementById('donut').innerHTML=`<circle cx="50" cy="50" r="40" fill="none" stroke="${tc.track}" stroke-width="13"/>${arcs}<text x="50" y="47" text-anchor="middle" fill="${tc.txt}" font-size="18" font-weight="700">${ms.length}</text><text x="50" y="61" text-anchor="middle" fill="${tc.sub}" font-size="7.5">METERS</text>`;
-  document.getElementById('donutLegend').innerHTML=[['Flowing','#56c451',ok],['No Flow','#ff780a',warn],['Offline','#f2495c',bad]]
+  document.getElementById('donutLegend').innerHTML=[['Flowing','var(--ok)',ok],['No Flow','var(--warn)',warn],['Offline','var(--bad)',bad]]
     .map(([n,c,v])=>`<div class="dl"><span class="k"><span class="dot" style="background:${c}"></span>${n}</span><b>${v}</b></div>`).join('');
-  // top consumers bars
+  // top consumers bars (panel removed from the layout; kept for the enlarge modal)
   const el=document.getElementById('barsSvg');
+  if(el){
   const top=[...ms].sort((a,b)=>b.daily-a.daily).slice(0,8);
   const W=600,rowH=17,gap=5,padL=150,padR=48, H=top.length*(rowH+gap);
   const max=Math.max(...top.map(t=>t.daily),0.001), iw=W-padL-padR;
@@ -1527,6 +1897,7 @@ function renderCharts(ms){
       <rect x="${padL}" y="${y}" width="${w.toFixed(1)}" height="${rowH}" rx="2" fill="#ff780a"/>
       <text x="${(padL+w+5).toFixed(1)}" y="${y+rowH*0.72}" class="gbar-val">${t.daily.toFixed(1)}</text>`;
   }).join('');
+  }
   renderZones(ms);
 }
 function renderZones(ms){
@@ -1545,7 +1916,10 @@ function renderZones(ms){
 function renderTrend(){
   const body=document.getElementById('trendBody'); if(!body)return;
   function block(label,cur,prev,curLbl){
-    if(cur==null){ return `<div class="tr"><span class="trl">${label}</span><span class="trc">no data yet</span></div>`; }
+    if(cur==null){
+      const why = trend.err ? 'query failed — see console' : 'not enough history yet';
+      return `<div class="tr"><span class="trl">${label}</span><span class="trc" ${trend.err?'style="color:var(--bad)"':''}>${why}</span></div>`;
+    }
     let d='',cls='flat';
     if(prev!=null && prev>0){ const p=((cur-prev)/prev*100); cls=p>1?'up':(p<-1?'down':'flat'); d=`<span class="trd ${cls}">${p>0?'▲':(p<0?'▼':'■')} ${Math.abs(p).toFixed(0)}%</span>`; }
     return `<div class="tr"><span class="trl">${label}</span><span class="trv">${cur.toLocaleString()}</span>${d}</div>
@@ -1559,6 +1933,7 @@ const conn=document.getElementById('conn'), upd=document.getElementById('upd');
 function setConn(cls,txt){conn.className=cls;conn.textContent=txt;}
 function apply(ms,mode){
   meters=ms; buildScene(meters); renderUI(meters); renderCharts(meters); renderTrend();
+  if(window.renderTiles) renderTiles();
   upd.textContent='updated '+new Date().toLocaleTimeString();
 }
 function showAuth(v){ document.getElementById('authbox').style.display=v?'block':'none'; if(v) updateKeyStatus(); }
@@ -1594,7 +1969,7 @@ async function refresh(){
   try{
     const [ms,al]=await Promise.all([fetchLive(), fetchAlarms().catch(()=>alarms)]);
     alarms=al||[]; apply(ms,'live'); renderAlarms(); setConn('live','● LIVE'); showAuth(false);
-    if(!window.__analyticsLoaded){ window.__analyticsLoaded=true; loadAnalytics(); }
+    if(!window.__analyticsLoaded){ window.__analyticsLoaded=true; loadAnalytics(); if(window.loadHourly) loadHourly(); }
   }catch(e){
     console.error(e);
     const msg=(e&&e.message)||String(e);
@@ -1659,6 +2034,7 @@ function applyTheme(t){
   THEME=t;
   document.body.classList.toggle('night', t==='night');
   scene.background.set(T3[t].bg);
+  if(typeof applyCityForTheme==='function') applyCityForTheme(t);
   scene.fog.color.set(T3[t].bg); scene.fog.near=T3[t].near; scene.fog.far=T3[t].far;
   scene.remove(gridHelper);
   gridHelper=new THREE.GridHelper(200,60,T3[t].grid[0],T3[t].grid[1]);
@@ -1718,7 +2094,7 @@ function lockShow(setup){
   lkBtn.textContent=setup?'Save & open':'Unlock';
   lkHint.textContent=setup
     ? 'Kept in this browser as a salted hash only \u2014 never written into the dashboard file.'
-    : 'Forgotten it? Clearing this page\u2019s browser storage resets the login.';
+    : 'Forgotten it? Press F12 then Console and run: localStorage.removeItem(\'wm_lock\'); location.reload() - resets only the login and keeps your 3PhTech session.';
   lkId.value=''; lkPw.value=''; lkPw2.value=''; lkMsg.textContent='';
   setTimeout(()=>lkId.focus(),60);
 }
@@ -1767,6 +2143,254 @@ function animate(){requestAnimationFrame(animate);
   updateCam(); renderer.render(scene,camera);
 }
 animate();
+</script>
+<script>
+/* ============================================================
+   Left navigation + bottom stat tiles.
+   Nav entries scroll to / open the thing they name, so every item
+   does something real rather than being decoration.
+   ============================================================ */
+(function(){
+  function flash(el){
+    if(!el) return;
+    el.style.transition='box-shadow .25s';
+    el.style.boxShadow='0 0 0 2px var(--accent)';
+    setTimeout(function(){ el.style.boxShadow=''; }, 1100);
+  }
+  function drawer(open){
+    var d=document.getElementById('alarmDrawer');
+    if(d) d.classList.toggle('open', open!==false);
+  }
+  /* Analytics entries open the panel in the zoom modal rather than nudging the
+     page, so a nav click lands on something you can actually read. */
+  function panel(id){
+    drawer(false);
+    if(window.showPanel) window.showPanel(id);
+    else flash(document.getElementById(id));
+  }
+  function filter(f){
+    drawer(false);
+    if(typeof closePanel==='function') closePanel();
+    if(window.setAlertFilter) window.setAlertFilter(f);
+    flash(document.getElementById('sidebar'));
+  }
+  var NAV = {
+    overview:  function(){ drawer(false); if(typeof closePanel==='function') closePanel();
+                           if(window.setAlertFilter) window.setAlertFilter('all');
+                           window.scrollTo(0,0); },
+    meters:    function(){ filter('all'); var s=document.getElementById('search'); if(s) s.focus(); },
+    livemap:   function(){ drawer(false); if(typeof closePanel==='function') closePanel();
+                           var r=document.getElementById('mapReset'); if(r) r.click();
+                           flash(document.getElementById('mapPanel')); },
+    alarms:    function(){ if(typeof closePanel==='function') closePanel(); drawer(true); },
+    leak:      function(){ filter('leak'); },
+    logs:      function(){ if(typeof closePanel==='function') closePanel(); drawer(true); },
+    consume:   function(){ panel('pZones'); },
+    reports:   function(){ drawer(false); document.getElementById('reportBtn').click(); },
+    trends:    function(){ panel('pTrend'); },
+    compare:   function(){ window.location.href='report.html'; },
+    devices:   function(){ panel('pConn'); },
+    groups:    function(){ panel('pStatus'); },
+    users:     function(){ drawer(false); document.getElementById('keyBtn').click(); },
+    settings:  function(){ drawer(false); document.getElementById('keyBtn').click(); }
+  };
+  document.querySelectorAll('#nav a').forEach(function(a){
+    a.onclick = function(e){
+      e.preventDefault();
+      document.querySelectorAll('#nav a').forEach(function(x){ x.classList.remove('on'); });
+      a.classList.add('on');
+      var fn = NAV[a.dataset.nav];
+      if (fn) fn();
+    };
+  });
+
+  /* ---- bottom tiles: sparkline from the same series the KPI cards use ---- */
+  window.sparkPath = function(vals, w, h){
+    if(!vals || vals.length < 2) return '';
+    var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals), sp = (mx-mn)||1;
+    return vals.map(function(v,i){
+      return (i ? 'L' : 'M') + ((i/(vals.length-1))*w).toFixed(1) + ',' + (h - ((v-mn)/sp)*h).toFixed(1);
+    }).join(' ');
+  };
+  window.renderTiles = function(){
+    if(typeof meters === 'undefined' || !meters.length) return;
+    var flow  = meters.reduce(function(a,m){ return a + (m.flow||0); }, 0);
+    var avg   = meters.length ? flow/meters.length : 0;
+    var leaks = meters.filter(function(m){ return typeof leakOf==='function' && leakOf(m); }).length;
+    var off   = meters.filter(function(m){ return !m.active; }).length;
+    var health = (off===0 && leaks===0) ? ['Good','var(--ok)'] :
+                 (off>2 || leaks>3)     ? ['Attention','var(--bad)'] : ['Fair','var(--warn)'];
+
+    var kf = document.getElementById('kFlow');
+    if(kf) kf.textContent = avg.toFixed(1) + ' m³/h';
+
+    /* System Status is the one place health is reported - no tile repeats it */
+    var sv = document.getElementById('sysVal'), ss = document.getElementById('sysSub'),
+        sd = document.getElementById('sysDot');
+    if(sv){ sv.textContent = health[0]==='Good' ? 'All Systems' : 'Needs Review';
+            sv.style.color = health[1]; }
+    if(ss) ss.textContent = health[0]==='Good' ? 'Operational'
+                          : (off + ' offline · ' + leaks + ' leak watch');
+    if(sd) sd.style.background = health[1];
+  };
+
+  /* the first apply() runs before this block is parsed, so prime it once now */
+  window.renderTiles();
+})();
+
+</script>
+<script>
+/* ============================================================
+   v2: hourly Today-vs-Yesterday trend, map controls, panel links.
+   ============================================================ */
+var hourly = {today:[], yest:[], todayTotal:null, yestTotal:null, err:null};
+
+/* Cumulative consumption per hour, today and yesterday, summed across meters.
+   Key 1041 is a within-day counter, so its value at hour H is the running
+   total so far that day — which is exactly the curve the panel draws. */
+async function loadHourly(){
+  if(!haveAuth()) return;
+  var DT = "to_timestamp(l.ts/1000) at time zone 'Asia/Dubai'";
+  var since = Date.now() - 2*86400000;
+  try{
+    hourly.err = null;
+    var rows = await sql(
+      "select day, hr, round(sum(v)::numeric,2) as total from (" +
+      "  select date_trunc('day'," + DT + ")::date::text as day," +
+      "         extract(hour from " + DT + ")::int as hr," +
+      "         l.device, max(l.num_value) as v" +
+      "  from ts_data l join devices d on d.id=l.device" +
+      "  where d.org='" + CONFIG.ORG + "' and d.type in ('Water Meter','Flow Meter')" +
+      "    and l.key=" + K.DAILY + " and l.ts>=" + since +
+      "  group by day, hr, l.device) q group by day, hr order by day, hr");
+    var byDay = {};
+    rows.forEach(function(r){
+      var d = String(r.day).slice(0,10);
+      if(!byDay[d]) byDay[d] = {};
+      byDay[d][Number(r.hr)] = Number(r.total);
+    });
+    var days = Object.keys(byDay).sort();
+    var tKey = days[days.length-1], yKey = days[days.length-2];
+    function series(k){
+      if(!k) return [];
+      var out = [];
+      for(var h=0; h<=23; h++) out.push(byDay[k][h] == null ? null : byDay[k][h]);
+      return out;
+    }
+    hourly.today = series(tKey);
+    hourly.yest  = series(yKey);
+    var lastOf = function(a){ for(var i=a.length-1;i>=0;i--) if(a[i]!=null) return a[i]; return null; };
+    hourly.todayTotal = lastOf(hourly.today);
+    hourly.yestTotal  = lastOf(hourly.yest);
+  }catch(e){
+    hourly.err = e.message;
+    console.warn('hourly trend failed:', e.message);
+  }
+  drawTrendChart();
+  if(window.renderTiles) renderTiles();
+}
+
+function drawTrendChart(){
+  var box = document.getElementById('trendBody');
+  if(!box) return;
+  var t = hourly.today, y = hourly.yest;
+  var any = t.some(function(v){ return v!=null; }) || y.some(function(v){ return v!=null; });
+  if(!any){
+    box.innerHTML = '<div style="padding:34px 12px;text-align:center;font-size:11.5px;color:' +
+      (hourly.err ? 'var(--bad)">trend query failed — see console' : 'var(--muted)">no hourly data yet') + '</div>';
+    return;
+  }
+  var W=520, H=150, pl=42, pr=10, pt=12, pb=24, iw=W-pl-pr, ih=H-pt-pb;
+  var all = t.concat(y).filter(function(v){ return v!=null; });
+  var max = Math.max.apply(null, all.concat([1]));
+  var step = Math.pow(10, Math.floor(Math.log10(max)));
+  var nice = Math.ceil(max/step)*step;
+  var X = function(h){ return pl + (h/23)*iw; };
+  var Y = function(v){ return pt + ih - (v/nice)*ih; };
+  var mut = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() || '#7f93ad';
+  var gridc = getComputedStyle(document.documentElement).getPropertyValue('--line').trim() || '#1d3149';
+
+  var g='';
+  for(var k=0;k<=4;k++){
+    var yy = pt+ih-(k/4)*ih, val = nice*k/4;
+    g += '<line x1="'+pl+'" y1="'+yy.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yy.toFixed(1)+'" stroke="'+gridc+'" stroke-width="1"/>'
+       + '<text x="'+(pl-6)+'" y="'+(yy+3.5).toFixed(1)+'" text-anchor="end" font-size="8.5" fill="'+mut+'">'
+       + (val>=1000 ? (val/1000)+'k' : Math.round(val)) + '</text>';
+  }
+  function path(arr){
+    var d='', started=false;
+    arr.forEach(function(v,h){
+      if(v==null) return;
+      d += (started?'L':'M') + X(h).toFixed(1) + ',' + Y(v).toFixed(1) + ' ';
+      started = true;
+    });
+    return d.trim();
+  }
+  var dy = path(y), dt = path(t);
+  var body='';
+  if(dy) body += '<path d="'+dy+'" fill="none" stroke="'+mut+'" stroke-width="1.6" stroke-dasharray="4 3" opacity=".8"/>';
+  if(dt) body += '<path d="'+dt+'" fill="none" stroke="#5aa9ff" stroke-width="2.2"/>';
+  t.forEach(function(v,h){
+    if(v==null) return;
+    body += '<circle cx="'+X(h).toFixed(1)+'" cy="'+Y(v).toFixed(1)+'" r="2.2" fill="#5aa9ff"><title>'+
+            String(h).padStart(2,'0')+':00 — '+v.toFixed(1)+' m³</title></circle>';
+  });
+  var xl='';
+  [0,4,8,12,16,20,23].forEach(function(h){
+    xl += '<text x="'+X(h).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="8.5" fill="'+mut+'">'+
+          (h===23?'24':String(h).padStart(2,'0'))+':00</text>';
+  });
+  var leg = '<g transform="translate('+(pl+4)+','+(pt+2)+')">' +
+    '<line x1="0" y1="0" x2="14" y2="0" stroke="#5aa9ff" stroke-width="2.2"/>' +
+    '<text x="18" y="3" font-size="8.5" fill="'+mut+'">Today</text>' +
+    '<line x1="52" y1="0" x2="66" y2="0" stroke="'+mut+'" stroke-width="1.6" stroke-dasharray="4 3"/>' +
+    '<text x="70" y="3" font-size="8.5" fill="'+mut+'">Yesterday</text></g>';
+  box.innerHTML = '<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="display:block">'+g+body+xl+leg+'</svg>';
+}
+
+/* ---- map controls ----
+   The scene orbits with camTheta (azimuth), camPhi (polar) and camRGoal
+   (distance, smoothed into camR). Small camPhi looks straight down.      */
+(function(){
+  function setR(v){ camRGoal = Math.max(18, Math.min(150, v)); }
+  var zi=document.getElementById('mapZoomIn'), zo=document.getElementById('mapZoomOut'),
+      rs=document.getElementById('mapReset'), ly=document.getElementById('mapLayers'),
+      fs=document.getElementById('mapFull'), vs=document.getElementById('viewSel');
+  if(zi) zi.onclick=function(){ setR(camRGoal * 0.78); };
+  if(zo) zo.onclick=function(){ setR(camRGoal * 1.28); };
+  if(rs) rs.onclick=function(){
+    camTheta=0.85; camPhi=1.0; setR(90);
+    camTargetGoal.set(0,3,0);
+    if(vs) vs.value='3d';
+  };
+  if(ly) ly.onclick=function(){ var l=document.getElementById('legend');
+    if(l) l.style.display = (l.style.display==='none' ? 'block' : 'none'); };
+  if(fs) fs.onclick=function(){ var p=document.getElementById('mapPanel');
+    if(document.fullscreenElement) document.exitFullscreen();
+    else if(p && p.requestFullscreen) p.requestFullscreen(); };
+  if(vs) vs.onchange=function(){
+    if(this.value==='top'){ camPhi=0.22; camTheta=0.0; setR(105); }
+    else                  { camPhi=1.0;  camTheta=0.85; setR(90); }
+    camTargetGoal.set(0,3,0);
+  };
+})();
+
+/* ---- panel footer links ---- */
+(function(){
+  var L = {
+    fConn:    function(){ var p=document.getElementById('pConn');   if(p) p.querySelector('.ph').click(); },
+    fStatus:  function(){ var p=document.getElementById('pStatus'); if(p) p.querySelector('.ph').click(); },
+    fZones:   function(){ document.getElementById('reportBtn').click(); },
+    fTrend:   function(){ window.location.href='report.html'; },
+    fAlerts:  function(){ document.getElementById('alarmDrawer').classList.add('open'); },
+    fMeters:  function(){ var s=document.getElementById('search'); if(s) s.focus(); }
+  };
+  Object.keys(L).forEach(function(id){
+    var e=document.getElementById(id);
+    if(e) e.onclick=L[id];
+  });
+})();
+
 </script>
 </body>
 </html>

@@ -278,6 +278,7 @@ table.stats td:first-child{text-align:left;font-weight:600}
 </div></div>
 </div>
 
+<script src="auth.js"></script>
 <script>
 /* ============================================================
    OPERON - per-meter Monitoring page
@@ -301,8 +302,12 @@ function unlocked(){
   if(!lsGet(CONFIG.LOCK_KEY)) return true;               // no lock configured yet
   return (+lsGet(CONFIG.UNLOCK_KEY)||0) > Date.now();
 }
-if(!unlocked()) document.getElementById('gate').classList.add('on');
-else document.getElementById('app').style.display='block';
+/* With accounts switched on (auth.js), boot() decides once Firebase answers. */
+const CLOUD=!!(window.WMAuth && WMAuth.enabled);
+if(!CLOUD){
+  if(!unlocked()) document.getElementById('gate').classList.add('on');
+  else document.getElementById('app').style.display='block';
+}
 
 /* ---------- auth (mirrors index.html, minus the sign-in UI) ---------- */
 class AuthError extends Error{}
@@ -648,8 +653,17 @@ async function loadMeter(){
   await run(loadKpis); await run(loadWater); await run(loadHeat);
 }
 (async function boot(){
-  if(!unlocked()) return;
-  if(creds) document.getElementById('whoami').textContent=creds.email;
+  if(CLOUD){
+    let s=null; try{ s=await WMAuth.session(); }catch(e){}
+    if(!s || !s.allowed){ document.getElementById('gate').classList.add('on'); return; }
+    const p=await WMAuth.loadPlatform();
+    if(p && p.email && p.pass){ creds={email:p.email, pass:p.pass}; authBlocked=null; }
+    document.getElementById('app').style.display='block';
+    document.getElementById('whoami').textContent=s.email;
+  }else{
+    if(!unlocked()) return;
+    if(creds) document.getElementById('whoami').textContent=creds.email;
+  }
   try{ await loadMeters(); }catch(e){ fail(e); return; }
   if(!current){ fail(new Error('No meters returned for this organisation.')); return; }
   await loadMeter();

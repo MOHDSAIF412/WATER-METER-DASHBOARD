@@ -1,0 +1,77 @@
+rules_version = '2';
+
+// OPERON dashboard access rules.
+// Paste into Firebase console -> Firestore Database -> Rules -> Publish.
+// These run on Google's servers: they are the real protection, because the
+// dashboard's own JavaScript can be read and changed by anyone.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn()     { return request.auth != null; }
+    function userDoc(uid)   { return /databases/$(database)/documents/users/$(uid); }
+    function ownerDoc()     { return /databases/$(database)/documents/meta/owner; }
+    function isActive()     { return signedIn() && exists(userDoc(request.auth.uid))
+                                     && get(userDoc(request.auth.uid)).data.active == true; }
+    function isAdmin()      { return isActive() && get(userDoc(request.auth.uid)).data.role == 'admin'; }
+
+    function validUser(d) {
+      return d.keys().hasOnly(['email', 'name', 'role', 'active', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && d.email is string && d.name is string && d.name.size() <= 80
+          && d.role in ['admin', 'viewer'] && d.active is bool;
+    }
+
+    // Marks that first-run setup is done. Readable by anyone so the sign-in
+    // screen knows whether to offer setup; holds nothing else.
+    match /meta/owner {
+      allow get: if true;
+      allow create: if signedIn()
+                    && !exists(ownerDoc())
+                    && request.resource.data.keys().hasOnly(['claimed', 'at'])
+                    && existsAfter(userDoc(request.auth.uid));
+      allow update, delete: if false;
+    }
+
+    match /users/{uid} {
+      allow get:  if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if validUser(request.resource.data) && (
+            (isAdmin() && request.resource.data.createdBy == request.auth.uid)
+         || // first-run setup: the very first account makes itself admin, exactly once
+            (signedIn() && request.auth.uid == uid
+             && !exists(ownerDoc()) && existsAfter(ownerDoc())
+             && request.resource.data.role == 'admin' && request.resource.data.active == true
+             && request.resource.data.email == request.auth.token.email
+             && request.resource.data.createdBy == uid)
+      );
+
+      // Admins manage everyone, but cannot demote or disable themselves,
+      // so the last administrator can never be locked out.
+      allow update: if isAdmin() && validUser(request.resource.data)
+                    && request.resource.data.email     == resource.data.email
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.createdBy == resource.data.createdBy
+                    && request.resource.data.updatedBy == request.auth.uid
+                    && (uid != request.auth.uid
+                        || (request.resource.data.role   == resource.data.role
+                         && request.resource.data.active == resource.data.active));
+
+      // Access is removed by disabling, which keeps the record and lets it be re-enabled.
+      allow delete: if false;
+    }
+
+    // The 3PhTech platform login, shared so any device goes live after sign-in.
+    match /settings/platform {
+      allow get:    if isActive();
+      allow create, update: if isAdmin()
+                    && request.resource.data.keys().hasOnly(['email', 'pass', 'updatedAt', 'updatedBy'])
+                    && request.resource.data.email is string && request.resource.data.pass is string
+                    && request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

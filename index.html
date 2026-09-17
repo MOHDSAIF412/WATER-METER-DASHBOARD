@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>3PhTech · Water Meter Command Center</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="auth.js"></script>
 <style>
   :root{
     --bg:#eef1f5; --bg2:#e7ecf2; --panel:#ffffff; --panel2:#f4f7fa; --line:#e1e6ed;
@@ -411,6 +412,45 @@
   #lockCard button:hover{background:#329a2d}
   #lockMsg{font-size:11.5px;min-height:15px;margin-top:9px}
   #lkHint{font-size:10px;color:#8494a8;margin-top:12px;line-height:1.5}
+  #lkLinks{font-size:11.5px;color:#8494a8;margin-top:6px}
+  #lkLinks:empty{display:none}
+  #lkLinks a{color:#7fd17b;cursor:pointer;text-decoration:none}
+  #lkLinks a:hover{text-decoration:underline}
+  #lockCard button:disabled{opacity:.6;cursor:default}
+
+  /* ---- Users & account screen ---- */
+  #usersModal{position:fixed;inset:0;background:rgba(8,14,24,.62);display:none;align-items:center;justify-content:center;z-index:60}
+  #usersModal.open{display:flex}
+  #umCard{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);
+          border-radius:18px;width:min(760px,94vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+  #umHead{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line);font-size:15px;font-weight:600}
+  #umClose{background:none;border:none;color:var(--muted);font-size:17px;cursor:pointer} #umClose:hover{color:var(--text)}
+  #umBody{overflow-y:auto;padding:6px 18px 18px}
+  #umBody section{padding:13px 0;border-bottom:1px solid var(--line)} #umBody section:last-child{border-bottom:none}
+  #umBody h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:9px;font-weight:700}
+  #umBody p{font-size:12px;color:var(--muted);line-height:1.55}
+  #umBody p b{color:var(--text)}
+  .umRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .umForm{display:grid;grid-template-columns:1fr 1.3fr 110px;gap:8px}
+  .umForm .wide{grid-column:span 2}
+  #umBody input,#umBody select{background:var(--bg2);border:1px solid var(--line);border-radius:7px;color:var(--text);
+          font-size:12px;padding:8px 10px;min-width:0;width:100%}
+  #umBody input:focus,#umBody select:focus{outline:none;border-color:var(--accent)}
+  .umBtn{font-size:11.5px;padding:7px 12px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--text);cursor:pointer;white-space:nowrap}
+  .umBtn:hover{border-color:var(--accent)} .umBtn:disabled{opacity:.5;cursor:default}
+  .umBtn.pri{background:var(--ok);border-color:var(--ok);color:#fff;font-weight:600}
+  .umBtn.warn{color:var(--bad)}
+  .umNote{font-size:10.5px;color:var(--muted);margin-top:7px}
+  .umMsg{font-size:11.5px;margin-top:7px;min-height:14px}
+  .umMsg.bad{color:var(--bad)} .umMsg.good{color:var(--ok)}
+  .umUser{display:grid;grid-template-columns:1fr 104px 74px 196px;gap:8px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+  .umUser:first-child{border-top:none}
+  .umUser .who b{display:block;font-size:12.5px;font-weight:600} .umUser .who span{font-size:11px;color:var(--muted)}
+  .umPill{font-size:9.5px;font-weight:700;letter-spacing:.4px;padding:3px 8px;border-radius:10px;text-align:center;text-transform:uppercase}
+  .umPill.on{color:var(--ok);background:rgba(34,197,94,.14)} .umPill.off{color:var(--bad);background:rgba(244,63,94,.14)}
+  .umUser .acts{display:flex;gap:6px;justify-content:flex-end}
+  @media(max-width:640px){ .umForm{grid-template-columns:1fr} .umForm .wide{grid-column:auto}
+    .umUser{grid-template-columns:1fr 1fr} .umUser .acts{grid-column:span 2;justify-content:flex-start} }
   #reportModal{position:fixed;inset:0;background:rgba(10,20,35,.55);display:none;z-index:40;align-items:center;justify-content:center}
   #reportModal.open{display:flex}
   #reportCard{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:20px;width:470px;max-width:92vw;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(20,40,70,.4), inset 0 1px 0 var(--glasshi)}
@@ -447,11 +487,13 @@
     <div class="lkn">OPERON</div>
     <div class="lks">WATER METER COMMAND CENTER</div>
     <div class="lkt" id="lkTitle">Enter your login</div>
+    <input id="lkName" placeholder="Your name" autocomplete="name" style="display:none">
     <input id="lkId" placeholder="ID" autocomplete="off" spellcheck="false">
     <input id="lkPw" type="password" placeholder="Password" autocomplete="off">
     <input id="lkPw2" type="password" placeholder="Confirm password" style="display:none">
     <button id="lkBtn">Unlock</button>
     <div id="lockMsg"></div>
+    <div id="lkLinks"></div>
     <div id="lkHint"></div>
   </div>
 </div>
@@ -664,6 +706,12 @@
     <div class="ph">Consumption Trend (m³)</div>
     <div class="pb" id="trendBody"></div>
     <div class="pfoot"><span id="fTrend">View analytics &#8594;</span></div>
+  </div>
+</div>
+<div id="usersModal">
+  <div id="umCard">
+    <div id="umHead"><span id="umTitle">Users</span><button id="umClose" title="Close">&#10005;</button></div>
+    <div id="umBody"></div>
   </div>
 </div>
 <div id="panelModal">
@@ -2002,6 +2050,8 @@ document.getElementById('signInBtn').onclick=async function(){
   try{
     await doLogin();                                   // verify BEFORE saving
     try{ localStorage.setItem(CONFIG.CRED_KEY, btoa(JSON.stringify(creds))); }catch(e){}
+    if(CLOUD && session && session.admin)                // accounts on: every signed-in device goes live
+      WMAuth.savePlatform(creds.email,creds.pass).catch(e=>console.warn('could not share platform login:',e.message));
     document.getElementById('pwIn').value='';
     window.__analyticsLoaded=false; showAuth(false);
     setConn('snap','connecting…'); refresh();
@@ -2121,11 +2171,226 @@ async function lkSubmit(){
     else { lkSay('ID or password is incorrect.',true); lkPw.value=''; lkPw.focus(); }
   } finally { lkBtn.disabled=false; }
 }
-lkBtn.onclick=lkSubmit;
-[lkId,lkPw,lkPw2].forEach(el=>el.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); lkSubmit(); } }));
-document.getElementById('lockBtn').onclick=()=>{ clearUnlock(); lockShow(false); };
-if(lockGet() && unlockValid()) revealApp();      // already unlocked recently on this machine
+
+/* ================= ACCOUNTS (auth.js) =================
+   With a Firebase project configured in auth.js, the per-browser lock above is
+   replaced by real accounts: one email and password work on every device,
+   "Forgot password?" emails a reset link, and administrators add or disable
+   people from Users. Without that config nothing here runs.               */
+const CLOUD = !!(window.WMAuth && WMAuth.enabled);
+let session = null;                 // {uid,email,profile,allowed,admin} once signed in
+let lkMode  = 'signin';
+const lkName=document.getElementById('lkName'), lkLinks=document.getElementById('lkLinks');
+
+const LK = {  // f = which of: name, email, password, confirm, button are shown
+  checking: {f:[0,0,0,0,0], t:'Checking your session…'},
+  signin:   {f:[0,1,1,0,1], t:'Sign in',                          b:'Sign in',
+             l:'<a data-go="reset">Forgot password?</a>',
+             h:'One login for every device. Ask an administrator if you need an account.'},
+  reset:    {f:[0,1,0,0,1], t:'Reset your password',              b:'Email me a reset link',
+             l:'<a data-go="signin">Back to sign in</a>',
+             h:'We will email a link to choose a new password. It can take a minute — check spam too.'},
+  setup:    {f:[1,1,1,1,1], t:'Create the administrator account', b:'Create admin & open',
+             l:'<a data-go="signin">Back to sign in</a>',
+             h:'Offered only until the first administrator exists. That account then adds everyone else from Users.'},
+  denied:   {f:[0,0,0,0,1], t:'No access yet',                    b:'Sign out'}
+};
+function cloudMode(mode){
+  const m=LK[mode]; lkMode=mode;
+  lkScreen.classList.add('on');
+  [lkName,lkId,lkPw,lkPw2,lkBtn].forEach((el,i)=>{ el.style.display=m.f[i]?'block':'none'; });
+  lkTitle.textContent=m.t; lkBtn.textContent=m.b||'';
+  lkId.type='email'; lkId.placeholder='Email'; lkId.setAttribute('autocomplete','username');
+  lkPw.setAttribute('autocomplete', mode==='setup'?'new-password':'current-password');
+  lkPw.placeholder = mode==='setup' ? 'Password (at least 8 characters)' : 'Password';
+  lkPw.value=''; lkPw2.value=''; lkMsg.textContent='';
+  lkLinks.innerHTML=m.l||'';
+  lkHint.textContent = mode==='denied'
+    ? 'Signed in as '+(session?session.email:'')+', but this account has not been given access, or it was disabled. Ask an administrator.'
+    : (m.h||'');
+  if(mode==='signin') WMAuth.ownerExists().then(has=>{
+    if(!has && lkMode==='signin') lkLinks.insertAdjacentHTML('beforeend',' &middot; <a data-go="setup">First-time setup</a>');
+  }).catch(()=>{});
+  if(m.f[0]||m.f[1]) setTimeout(()=>(mode==='setup'?lkName:lkId).focus(),60);
+}
+lkLinks.onclick=e=>{ const a=e.target.closest('[data-go]'); if(a) cloudMode(a.dataset.go); };
+
+async function cloudSubmit(){
+  const email=lkId.value.trim(), pw=lkPw.value;
+  lkBtn.disabled=true;
+  try{
+    if(lkMode==='denied'){ await cloudSignOut(); return; }
+    if(lkMode==='reset'){
+      if(!email){ lkSay('Enter your email address.',true); return; }
+      try{ await WMAuth.sendReset(email); }
+      catch(e){ if(e.code!=='auth/user-not-found') throw e; }   // never reveal whether an account exists
+      lkSay('If an account exists for '+email+', a reset link is on its way.');
+      return;
+    }
+    if(lkMode==='setup' && !lkName.value.trim()){ lkSay('Enter your name.',true); return; }
+    if(!email||!pw){ lkSay('Enter your email and password.',true); return; }
+    if(lkMode==='setup'){
+      if(pw.length<8){ lkSay('Use at least 8 characters for the password.',true); return; }
+      if(pw!==lkPw2.value){ lkSay('The two passwords do not match.',true); return; }
+      lkSay('Creating the administrator account…');
+      await cloudEnter(await WMAuth.createOwner(lkName.value,email,pw));
+      return;
+    }
+    lkSay('Signing in…');
+    await cloudEnter(await WMAuth.signIn(email,pw));
+  }catch(e){
+    lkSay(WMAuth.friendly(e),true); lkPw.value=''; lkPw2.value='';
+  }finally{ lkBtn.disabled=false; }
+}
+
+async function cloudEnter(s){
+  session=s;
+  if(!s){ cloudMode('signin'); return; }
+  if(!s.allowed){ cloudMode('denied'); return; }
+  // the 3PhTech login is kept with the accounts, so a new device goes live with no setup
+  const p=await WMAuth.loadPlatform();
+  if(p && p.email && p.pass){ creds={email:p.email, pass:p.pass}; authBlocked=null; }
+  WMAuth.watchProfile(s.uid, prof=>{
+    if(!prof || prof.active!==true){ cloudSignOut(); return; }   // disabled by an admin while open
+    session.profile=prof; session.admin=prof.role==='admin';
+  });
+  document.getElementById('lockBtn').title='Sign out ('+s.email+')';
+  revealApp();
+}
+
+/* Signing out also forgets this browser's platform session, so the next
+   person at a shared PC starts clean. */
+async function cloudSignOut(){
+  try{ localStorage.removeItem(CONFIG.CRED_KEY); localStorage.removeItem(CONFIG.TOKEN_KEY); localStorage.removeItem(CONFIG.TOKEN_KEY+'_r'); }catch(e){}
+  try{ await WMAuth.signOut(); }catch(e){}
+  location.reload();
+}
+
+async function cloudStart(){
+  cloudMode('checking');
+  try{ await cloudEnter(await WMAuth.session()); }
+  catch(e){ cloudMode('signin'); lkSay(WMAuth.friendly(e),true); }
+}
+
+lkBtn.onclick=()=>CLOUD ? cloudSubmit() : lkSubmit();
+[lkName,lkId,lkPw,lkPw2].forEach(el=>el.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); lkBtn.click(); } }));
+document.getElementById('lockBtn').onclick=()=>{
+  if(CLOUD){ if(confirm('Sign out of the dashboard on this device?')) cloudSignOut(); return; }
+  clearUnlock(); lockShow(false);
+};
+if(CLOUD) cloudStart();
+else if(lockGet() && unlockValid()) revealApp();      // already unlocked recently on this machine
 else lockShow(!lockGet());
+
+/* ================= USERS & ACCOUNT SCREEN ================= */
+const umModal=document.getElementById('usersModal'), umBody=document.getElementById('umBody');
+function umEsc(v){ return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function umSay(id,text,good){ const el=document.getElementById(id); if(el){ el.textContent=text; el.className='umMsg '+(good?'good':'bad'); } }
+function closeUsers(){ umModal.classList.remove('open'); }
+document.getElementById('umClose').onclick=closeUsers;
+umModal.addEventListener('click',e=>{ if(e.target===umModal) closeUsers(); });
+addEventListener('keydown',e=>{ if(e.key==='Escape') closeUsers(); });
+
+async function openUsers(){
+  umModal.classList.add('open');
+  if(!CLOUD){
+    document.getElementById('umTitle').textContent='Users';
+    umBody.innerHTML='<section><h4>Accounts are not switched on</h4><p>This dashboard still uses a login stored in this browser only. '+
+      'To get one login for every device, password reset by email and user management, follow <b>AUTH_SETUP.md</b> and paste the Firebase config into <b>auth.js</b>.</p></section>';
+    return;
+  }
+  if(!session) return;
+  const p=session.profile||{};
+  document.getElementById('umTitle').textContent=session.admin?'Users':'My account';
+  let h='<section><h4>My account</h4><div class="umRow" style="justify-content:space-between">'+
+    '<p><b>'+umEsc(p.name||session.email)+'</b> &middot; '+umEsc(session.email)+' &middot; '+(session.admin?'Administrator':'Viewer')+'</p>'+
+    '<div class="umRow"><button class="umBtn" id="umMyReset">Change my password</button><button class="umBtn warn" id="umSignOut">Sign out</button></div></div>'+
+    '<div class="umMsg" id="umMeMsg"></div></section>';
+  if(session.admin){
+    h+='<section><h4>Add a user</h4><div class="umForm">'+
+      '<input id="nuName" placeholder="Name" maxlength="80" autocomplete="off">'+
+      '<input id="nuEmail" type="email" placeholder="Email" autocomplete="off">'+
+      '<select id="nuRole"><option value="viewer">Viewer</option><option value="admin">Administrator</option></select>'+
+      '<input id="nuPass" class="wide" type="password" placeholder="Password (optional)" autocomplete="new-password">'+
+      '<button class="umBtn pri" id="nuBtn">Create user</button></div>'+
+      '<div class="umNote">Leave the password empty and they are emailed a link to choose their own. '+
+      'Viewers see the dashboard; administrators can also manage users.</div>'+
+      '<div class="umMsg" id="nuMsg"></div></section>'+
+      '<section><h4>People <span id="umCount"></span></h4><div id="umList"><p>Loading&hellip;</p></div><div class="umMsg" id="umListMsg"></div></section>';
+  }
+  umBody.innerHTML=h;
+  document.getElementById('umSignOut').onclick=()=>cloudSignOut();
+  document.getElementById('umMyReset').onclick=async function(){
+    this.disabled=true;
+    try{ await WMAuth.sendReset(session.email); umSay('umMeMsg','A link to set a new password was emailed to '+session.email+'.',true); }
+    catch(e){ umSay('umMeMsg',WMAuth.friendly(e)); }
+    finally{ this.disabled=false; }
+  };
+  if(!session.admin) return;
+  document.getElementById('nuBtn').onclick=createUserFromForm;
+  loadUserList();
+}
+
+async function createUserFromForm(){
+  const name=document.getElementById('nuName').value.trim(), email=document.getElementById('nuEmail').value.trim();
+  const role=document.getElementById('nuRole').value, pass=document.getElementById('nuPass').value;
+  if(!name||!email){ umSay('nuMsg','Enter a name and an email address.'); return; }
+  if(pass && pass.length<8){ umSay('nuMsg','Use at least 8 characters, or leave the password empty to email a link.'); return; }
+  const btn=document.getElementById('nuBtn'); btn.disabled=true; btn.textContent='Creating…';
+  try{
+    const r=await WMAuth.createUser({name,email,role,password:pass});
+    ['nuName','nuEmail','nuPass'].forEach(id=>document.getElementById(id).value='');
+    umSay('nuMsg', r.invited ? 'Created. '+r.email+' has been emailed a link to set their password.'
+                             : 'Created. Give '+r.email+' the password you chose.', true);
+    loadUserList();
+  }catch(e){ umSay('nuMsg',WMAuth.friendly(e)); }
+  finally{ btn.disabled=false; btn.textContent='Create user'; }
+}
+
+async function loadUserList(){
+  const box=document.getElementById('umList'); if(!box) return;
+  let list;
+  try{ list=await WMAuth.listUsers(); }
+  catch(e){ box.innerHTML=''; umSay('umListMsg',WMAuth.friendly(e)); return; }
+  document.getElementById('umCount').textContent='('+list.length+')';
+  box.innerHTML=list.map(u=>{
+    const me=u.uid===session.uid;
+    return '<div class="umUser" data-uid="'+umEsc(u.uid)+'" data-email="'+umEsc(u.email)+'">'+
+      '<div class="who"><b>'+umEsc(u.name||'—')+(me?' (you)':'')+'</b><span>'+umEsc(u.email)+'</span></div>'+
+      '<select data-act="role"'+(me?' disabled title="You cannot change your own role"':'')+'>'+
+        '<option value="viewer"'+(u.role==='viewer'?' selected':'')+'>Viewer</option>'+
+        '<option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option></select>'+
+      '<span class="umPill '+(u.active?'on':'off')+'">'+(u.active?'Active':'Disabled')+'</span>'+
+      '<div class="acts"><button class="umBtn" data-act="reset">Send reset link</button>'+
+        (me?'':'<button class="umBtn'+(u.active?' warn':'')+'" data-act="toggle" data-on="'+(u.active?1:0)+'">'+(u.active?'Disable':'Enable')+'</button>')+
+      '</div></div>';
+  }).join('') || '<p>No users yet.</p>';
+}
+
+umBody.addEventListener('click',async e=>{
+  const b=e.target.closest('.umUser button[data-act]'); if(!b) return;
+  const row=b.closest('.umUser'), uid=row.dataset.uid, email=row.dataset.email;
+  b.disabled=true;
+  try{
+    if(b.dataset.act==='reset'){
+      await WMAuth.sendReset(email); umSay('umListMsg','Password reset link emailed to '+email+'.',true);
+    }else if(b.dataset.act==='toggle'){
+      const on=b.dataset.on==='1';
+      if(on && !confirm('Disable '+email+'? They are signed out and cannot open the dashboard until re-enabled.')) return;
+      await WMAuth.updateUser(uid,{active:!on});
+      umSay('umListMsg',(on?'Disabled ':'Enabled ')+email+'.',true); loadUserList();
+    }
+  }catch(err){ umSay('umListMsg',WMAuth.friendly(err)); }
+  finally{ b.disabled=false; }
+});
+umBody.addEventListener('change',async e=>{
+  const sel=e.target.closest('select[data-act="role"]'); if(!sel) return;
+  const row=sel.closest('.umUser');
+  try{ await WMAuth.updateUser(row.dataset.uid,{role:sel.value});
+       umSay('umListMsg',row.dataset.email+' is now '+(sel.value==='admin'?'an administrator':'a viewer')+'.',true); }
+  catch(err){ umSay('umListMsg',WMAuth.friendly(err)); loadUserList(); }
+});
 document.getElementById('monBtn').onclick=()=>{ window.location.href='report.html'; };
 
 /* ================= ANIMATE ================= */
@@ -2191,7 +2456,7 @@ animate();
     compare:   function(){ window.location.href='report.html'; },
     devices:   function(){ panel('pConn'); },
     groups:    function(){ panel('pStatus'); },
-    users:     function(){ drawer(false); document.getElementById('keyBtn').click(); },
+    users:     function(){ drawer(false); if(typeof closePanel==='function') closePanel(); openUsers(); },
     settings:  function(){ drawer(false); document.getElementById('keyBtn').click(); }
   };
   document.querySelectorAll('#nav a').forEach(function(a){

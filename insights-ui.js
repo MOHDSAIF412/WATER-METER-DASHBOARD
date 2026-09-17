@@ -43,10 +43,10 @@
       try{
         state.err = null;
         var res = await Promise.all([
-          /* last reading of each counter in every hour, 4 weeks: enough for 14 nights and an hourly profile */
+          /* last reading of each counter in every hour, 6 weeks: 14 nights, an hourly profile, and base-flow history */
           sql('select l.device, l.key, max(l.ts) as ts, max(l.num_value) as v ' +
               'from ts_data l join devices d on d.id=l.device ' +
-              "where d.org='" + ORG + "' and " + TYPES + ' and l.key in (' + K.TOTAL + ',' + K.DAILY + ') and l.ts>=' + (now - 28 * 86400000) + ' ' +
+              "where d.org='" + ORG + "' and " + TYPES + ' and l.key in (' + K.TOTAL + ',' + K.DAILY + ') and l.ts>=' + (now - 42 * 86400000) + ' ' +
               'group by l.device, l.key, floor(l.ts/3600000.0)'),
           /* daily totals, 90 days: the "normal" for each meter */
           sql('select l.device, date_trunc(\'day\',' + DT + ')::date::text as d, max(l.num_value) as v ' +
@@ -187,7 +187,7 @@
     if (!state.data){
       body.innerHTML = state.err
         ? '<div class="inEmpty">The analysis could not load: ' + esc(state.err) + '<br><br>Try ↻ Refresh.</div>'
-        : '<div class="inEmpty"><div class="spin" style="margin:0 auto 12px"></div>Analysing 4 weeks of hourly readings and 90 days of daily use…</div>';
+        : '<div class="inEmpty"><div class="spin" style="margin:0 auto 12px"></div>Analysing 6 weeks of readings and 90 days of daily use…</div>';
       return;
     }
     sub.textContent = 'Leaks, night use and abnormal consumption · analysed ' +
@@ -232,7 +232,8 @@
 
     if (clear.length) h += '<div class="inSec"><h3>' + clear.length + ' meters with nothing unusual</h3><div class="inOk">' +
       clear.map(function(r){
-        var n = r.night, why = n.status === 'insufficient' ? 'not enough night readings'
+        var n = r.night, why = n.mode === 'base' && n.status !== 'insufficient' ? 'base flow steady at ' + lpm(n.mnf)
+          : n.status === 'insufficient' ? 'not enough readings'
           : n.expectedNightUse ? 'night use normal for this meter'
           : 'stops at night on ' + (n.recentNights - n.continuousNights) + ' of ' + n.recentNights + ' nights';
         return '<div data-m="' + esc(r.id) + '">' + esc(r.name) + '<span>✓ ' + why + '</span></div>';
@@ -260,7 +261,11 @@
       'absolute deviation, so one strange day cannot shift the baseline. Regular weekday patterns, such as busy race days, are learned and not ' +
       'flagged. A day counts as abnormal when it is far outside that range (robust z-score above 3.5) and at least ' + CONFIG.SPIKE_MIN +
       ' m³ above normal. Sustained shifts are dated with a least-squares change-point test. Today is compared with how much the meter has normally ' +
-      'used by the same hour.</p><p style="margin-top:6px"><b>One cause, one finding.</b> If a leak explains the high daily totals, you see the leak, ' +
+      'used by the same hour.</p><p style="margin-top:6px"><b>Meters that report every few hours.</b> When readings are more than ' +
+      '3 hours apart, single night hours cannot be seen. These meters are judged on base flow instead: the lowest rate the meter runs at ' +
+      'between two readings, week by week. Sites with round-the-clock use keep a steady base flow, while a leak adds to it and does not ' +
+      'stop, so a base flow that rises and stays up is flagged, with the extra flow as the likely loss.</p>' +
+      '<p style="margin-top:6px"><b>One cause, one finding.</b> If a leak explains the high daily totals, you see the leak, ' +
       'not a separate alarm for each day.</p><p style="margin-top:6px">Everything runs in your browser on the platform readings. No data is sent anywhere else.</p></details>';
   }
   function pad(n){ return (n < 10 ? '0' : '') + n; }
@@ -271,8 +276,10 @@
     var n = r.night, o = state.data.options;
     modal.querySelector('#inTitle').textContent = r.name;
     var h = '<span class="inBack" id="inBack">‹ All insights</span>' +
-      '<div class="inMeta">' + esc(r.type || '') + ' · readings about every ' + (r.intervalMin || '—') + ' min · ' +
-      Math.round(r.coverage * 100) + '% of hours covered (last 28 days) · uses the ' + r.counter + ' counter</div>';
+      '<div class="inMeta">' + esc(r.type || '') + ' · readings about every ' + interval(r.intervalMin) + ' · ' +
+      (r.lowRes ? (n.readings || 0) + ' readings in the last 28 days · judged on base flow'
+                : Math.round(r.coverage * 100) + '% of hours covered (last 28 days)') +
+      ' · uses the ' + r.counter + ' counter</div>';
 
     h += '<div class="inSec" style="margin-top:10px">';
     if (r.findings.length){
@@ -290,15 +297,18 @@
       }).join('');
     } else {
       h += '<div class="inCardF ok"><div class="h">✓ No leak or abnormal consumption found</div><p>' +
-        (n.status === 'insufficient' ? 'There are not enough night readings to rule out a leak. Consumption checks found nothing unusual.'
+        (n.mode === 'base' && n.status !== 'insufficient' ? 'Base flow is steady at ' + lpm(n.mnf) + ' (' + lpm(n.baseBefore) +
+            ' in the weeks before), and daily use is within its normal range.'
+          : n.status === 'insufficient' ? 'There are not enough readings to rule out a leak. Consumption checks found nothing unusual.'
           : n.expectedNightUse ? 'Night use is normal for this meter and in line with its usual nights. Daily use is within its normal range.'
           : 'Water stopped completely at night on ' + (n.recentNights - n.continuousNights) + ' of the last ' + n.recentNights +
             ' nights, and daily use is within its normal range.') + '</p></div>';
     }
     h += '</div>';
 
-    /* night flow */
-    h += '<div class="inSec"><h3>Night flow · ' + pad(o.NIGHT_FROM) + ':00–' + pad(o.NIGHT_TO) + ':00</h3><div class="inGrid"><div>' +
+    /* night flow, or base flow for meters that report every few hours */
+    if (n.mode === 'base') h += baseSection(r, n);
+    else h += '<div class="inSec"><h3>Night flow · ' + pad(o.NIGHT_FROM) + ':00–' + pad(o.NIGHT_TO) + ':00</h3><div class="inGrid"><div>' +
       '<table class="inTbl">' +
       row(n.status === 'continuous' ? 'Minimum night flow (median of the nights it ran)' : 'Minimum night flow (median, last ' + (n.recentNights || 7) + ' nights)', n.mnf == null ? '—' : '<b>' + num(n.mnf, 3) + ' m³/h</b> · ' + lpm(n.mnf)) +
       row('Night volume ' + pad(o.NIGHT_FROM) + '–' + pad(o.NIGHT_TO) + ' (median)', n.nightVolume == null ? '—' : num(n.nightVolume, 2) + ' m³') +
@@ -331,6 +341,56 @@
     var rb = body.querySelector('#inReport'); if (rb) rb.onclick = function(){ close(); openReportModal(r.id); };
   }
   function row(k, v){ return '<tr><td>' + k + '</td><td>' + v + '</td></tr>'; }
+  function interval(min){ return min == null ? '—' : min < 90 ? min + ' min' : num(min / 60, 1) + ' h'; }
+
+  function baseSection(r, n){
+    var wk = n.weeks || [];
+    var h = '<div class="inSec"><h3>Base flow · readings every ' + interval(r.intervalMin) + '</h3><div class="inGrid"><div><table class="inTbl">' +
+      row(n.status === 'continuous' ? 'Base flow now' : 'Base flow, last 3 days', n.mnf == null ? '—' : '<b>' + num(n.mnf, 3) + ' m³/h</b> · ' + lpm(n.mnf)) +
+      row(n.status === 'continuous' ? 'Base flow before ' + dshort(n.onset) : 'Base flow, earlier days (typical)', n.baseBefore == null ? '—' : num(n.baseBefore, 3) + ' m³/h · ' + lpm(n.baseBefore)) +
+      row('Week by week (oldest first)', wk.slice().reverse().map(function(x){ return x.base == null ? '—' : lpm(x.base); }).join(' → ')) +
+      row('Gaps with no water, last 7 days', wk[0] ? wk[0].stops + ' of ' + wk[0].n : '—') +
+      row('Trend', n.trend || '—') +
+      (n.status === 'continuous' ? row('Higher base flow since', dshort(n.onset)) +
+        row('Possible loss (the extra flow)', num(n.lossPerDay, 2) + ' m³/day · ' + vol(n.lossPerDay * 30) + '/month') : '') +
+      row('Night profile', n.expectedNightUse ? 'Night use expected' : 'Standard') +
+      '</table></div><div>' + intervalChart(n) + '</div></div></div>';
+    return h;
+  }
+
+  /* usage rate between each pair of readings, last 14 days */
+  function intervalChart(n){
+    var xs = n.intervals || [], W = 360, H = 170, pl = 36, pb = 22, pt = 8, iw = W - pl - 6, ih = H - pt - pb;
+    if (!xs.length) return '<div class="inChart"><div class="ct">Flow between readings</div><div class="cs">No readings in the last 14 days.</div></div>';
+    var end = Math.max.apply(null, xs.map(function(x){ return x.to; })), start = end - 14 * 86400000;
+    var rates = xs.map(function(x){ return x.rate * 1000 / 60; }).sort(function(a, b){ return a - b; });
+    var top = Math.max(rates[Math.floor(rates.length * 0.9)] || 0, (n.mnf || 0) * 1000 / 60 * 2, 0.5) * 1.15;
+    var X = function(t){ return pl + iw * (t - start) / (end - start); }, Y = function(v){ return pt + ih - ih * Math.min(v, top) / top; };
+    var mut = cssv('--muted', '#7f93ad'), line = cssv('--line', '#1d3149'), g = '';
+    for (var k = 0; k <= 3; k++){
+      var yy = Y(top * k / 3);
+      g += '<line x1="' + pl + '" x2="' + (W - 6) + '" y1="' + yy + '" y2="' + yy + '" stroke="' + line + '"/>' +
+        '<text x="' + (pl - 4) + '" y="' + (yy + 3) + '" font-size="8.5" text-anchor="end" fill="' + mut + '">' + num(top * k / 3, top < 3 ? 1 : 0) + '</text>';
+    }
+    xs.forEach(function(x){
+      var v = x.rate * 1000 / 60, x0 = Math.max(pl, X(x.from)), x1 = X(x.to);
+      g += '<rect x="' + x0 + '" y="' + Y(v) + '" width="' + Math.max(1, x1 - x0 - 0.6) + '" height="' + (pt + ih - Y(v)) + '" fill="' + cssv('--blue', '#3b82f6') +
+        '" fill-opacity=".7"><title>' + new Date(x.from).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' → ' +
+        new Date(x.to).toLocaleString([], { hour: '2-digit', minute: '2-digit' }) + ': ' + num(v, 2) + ' L/min (' + num(x.m3, 2) + ' m³)' +
+        (v * 60 / 1000 > top * 60 / 1000 ? ' (off the scale)' : '') + '</title></rect>';
+    });
+    if (n.baseBefore != null) g += '<line x1="' + pl + '" x2="' + (W - 6) + '" y1="' + Y(n.baseBefore * 1000 / 60) + '" y2="' + Y(n.baseBefore * 1000 / 60) +
+      '" stroke="' + cssv('--ok', '#22c55e') + '" stroke-width="1.5" stroke-dasharray="5 3"/>';
+    if (n.mnf != null) g += '<line x1="' + X(n.onset ? Math.max(start, Date.parse(n.onset + 'T00:00:00Z') - 4 * 3600000) : end - 3 * 86400000) + '" x2="' + (W - 6) + '" y1="' + Y(n.mnf * 1000 / 60) + '" y2="' + Y(n.mnf * 1000 / 60) +
+      '" stroke="' + (n.status === 'continuous' ? cssv('--bad', '#f43f5e') : cssv('--warn', '#f59e0b')) + '" stroke-width="1.5"/>';
+    for (var d = 0; d <= 14; d += 2){
+      var t = start + d * 86400000;
+      g += '<text x="' + X(t) + '" y="' + (H - 7) + '" font-size="8" text-anchor="middle" fill="' + mut + '">' + dshort(new Date(t + 4 * 3600000).toISOString().slice(0, 10)).split(' ')[0] + '</text>';
+    }
+    return '<div class="inChart"><div class="ct">Flow between readings, last 14 days (L/min)</div>' +
+      '<div class="cs">Each bar spans two readings. Dashed green: base flow before. Solid: base flow now.</div>' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg></div>';
+  }
 
   /* 14 nights x 24 hours: continuous flow shows as a band that never goes dark */
   function heatStrip(n, o){
@@ -450,7 +510,8 @@
       if (r.findings.length > 2) h += '<div class="di"><div></div><div><span>+' + (r.findings.length - 2) + ' more</span></div></div>';
     } else {
       h = '<div class="di ok"><div>✓</div><div><b>No leak or abnormal use</b><span>' +
-        (n.status === 'insufficient' ? 'Not enough night readings to rule out a leak'
+        (n.mode === 'base' && n.status !== 'insufficient' ? 'Base flow steady at ' + lpm(n.mnf)
+          : n.status === 'insufficient' ? 'Not enough readings to rule out a leak'
           : n.expectedNightUse ? 'Night use in line with its usual nights'
           : 'Water stopped at night on ' + (n.recentNights - n.continuousNights) + ' of ' + n.recentNights + ' nights') + '</span></div></div>';
     }

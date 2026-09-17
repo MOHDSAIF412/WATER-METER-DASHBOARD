@@ -30,6 +30,12 @@
     MIN_NIGHTS: 5,                       // fewer usable nights = no verdict
     ZERO_M3H: 0.005,                     // an hour below 5 L counts as "stopped"
     MAX_GAP_H: 3,                        // readings further apart are not spread across hours
+    LOWRES_MAX_GAP_H: 12,                // meters reporting every 3-12 h are judged on base flow
+    LOWRES_MIN_INTERVALS: 6,             // reading intervals needed in a week
+    LOWRES_RISE_M3H: 0.02,               // base flow must rise at least this much (0.33 L/min)
+    LOWRES_MARGIN: 1.0,                  // new level must clear the old high days (80th pct) by this factor
+    LOWRES_ADD: 0.05,                    // ...plus this much (tuned: <2% false alarms on simulated healthy meters)
+    LOWRES_ABOVE: 0.8,                   // share of days since the start that must stay above it
     Z: 3.5,                              // robust z-score for "abnormal"
     MIN_EXCESS_M3: 5,                    // ignore differences smaller than this
     BASELINE_DAYS: 56,
@@ -186,6 +192,91 @@
     return res;
   }
 
+  /* ---------- 2b. base flow, for meters that report every few hours ----------
+     With readings hours apart, single night hours cannot be seen. What can be
+     seen is the lowest rate a meter runs at between two readings: its base flow.
+     A site with round-the-clock use (animals, cooling) has a steady base flow of
+     its own. A leak adds to it and does not stop, so the base flow steps up and
+     stays up. Each week is compared with the three weeks before.            */
+  function analyseBaseFlow(readings, dailyCounter, meter, now, opt){
+    var r = readings.filter(function(x){ return isFinite(x.ts) && isFinite(x.v); })
+                    .sort(function(a, b){ return a.ts - b.ts; });
+    var intervals = [];
+    for (var i = 1; i < r.length; i++){
+      var a = r[i - 1], b = r[i], dt = b.ts - a.ts;
+      if (dt <= 0 || dt > opt.LOWRES_MAX_GAP_H * HOUR) continue;
+      if (dailyCounter && localDay(a.ts) !== localDay(b.ts)) continue;   // spans the midnight reset
+      if (b.v < a.v) continue;                                            // reset or swapped meter
+      var rate = (b.v - a.v) / (dt / HOUR);
+      if (rate > 1000) continue;
+      intervals.push({ from: a.ts, to: b.ts, rate: round(rate, 4), m3: round(b.v - a.v, 3) });
+    }
+    var res = {
+      mode: 'base', nights: [], expectedNightUse: opt.NIGHT_USE_EXPECTED.test(meter.name || ''),
+      intervals: intervals.filter(function(x){ return x.to > now - 14 * DAY; }),
+      readings: r.length, weeks: [], status: 'clear', reasons: []
+    };
+    for (var w = 0; w < 4; w++){
+      var hi = now - w * 7 * DAY, lo = hi - 7 * DAY;
+      var inW = intervals.filter(function(x){ return x.to > lo && x.to <= hi; });
+      res.weeks.push({
+        from: lo, to: hi, n: inW.length,
+        base: inW.length >= opt.LOWRES_MIN_INTERVALS ? round(Math.min.apply(null, inW.map(function(x){ return x.rate; })), 4) : null,
+        stops: inW.filter(function(x){ return x.rate < opt.ZERO_M3H; }).length
+      });
+    }
+
+    /* each day's quietest gap between readings */
+    var byDay = {};
+    intervals.forEach(function(x){ var d = localDay(x.to); (byDay[d] = byDay[d] || []).push(x.rate); });
+    var days = Object.keys(byDay).sort().filter(function(d){ return byDay[d].length >= 2; });
+    var mins = days.map(function(d){ return Math.min.apply(null, byDay[d]); });
+    res.dayMins = days.map(function(d, i){ return { d: d, v: round(mins[i], 4) }; });
+    res.recentN = intervals.filter(function(x){ return x.to > now - 3 * DAY; }).length;
+    if (days.length < 10 || days[days.length - 1] < localDay(now - 2 * DAY)){
+      res.status = 'insufficient';
+      res.reasons.push(intervals.length
+        ? 'Only ' + days.length + ' days with at least two usable readings in the last ' + Math.round((now - r[0].ts) / DAY) + ' days.'
+        : 'No usable readings in the recent weeks.');
+      return res;
+    }
+    function quantile(a, q){ var v = a.slice().sort(function(x, y){ return x - y; }); return v[Math.min(v.length - 1, Math.floor(q * v.length))]; }
+
+    /* A quiet gap is partly luck when readings are hours apart, so one high day
+       means little. A leak is a step: from some day on, nearly every day's
+       quietest gap sits above the old range, and it stays there. The earliest
+       day that passes is where it started. */
+    var found = null;
+    for (var s = 7; s <= mins.length - 3 && !found; s++){
+      var before = mins.slice(0, s), after = mins.slice(s);
+      var top = quantile(before, 0.8), mb = median(before), ma = median(after);
+      var line = Math.max(top * opt.LOWRES_MARGIN + opt.LOWRES_ADD, mb + opt.LOWRES_RISE_M3H);
+      var above = after.filter(function(v){ return v > line; }).length / after.length;
+      var lastTwo = after.slice(-2).every(function(v){ return v > line; });
+      if (above >= opt.LOWRES_ABOVE && lastTwo && ma - mb >= opt.LOWRES_RISE_M3H && ma >= 1.5 * mb + opt.ZERO_M3H)
+        found = { s: s, before: mb, after: ma, n: after.length };
+    }
+
+    var recent = mins.slice(-3);
+    res.mnf = round(median(recent), 4);
+    if (found){
+      res.status = 'continuous';
+      res.baseBefore = round(found.before, 4);
+      res.mnf = round(found.after, 4);
+      res.leakRate = round(found.after - found.before, 4);            // the part that is new
+      res.lossPerDay = round(res.leakRate * 24, 2);
+      res.onset = days[found.s];
+      res.onsetBeforeWindow = false;
+      res.daysRaised = found.n;
+      res.confidence = found.n >= 5 && found.s >= 10 ? 'medium' : 'low';
+      res.trend = 'rising';
+    } else {
+      res.baseBefore = round(median(mins.slice(0, -3)), 4);
+      res.trend = res.mnf > res.baseBefore * 1.2 + opt.ZERO_M3H ? 'rising' : res.mnf < res.baseBefore * 0.8 - opt.ZERO_M3H ? 'falling' : 'steady';
+    }
+    return res;
+  }
+
   /* ---------- 3. daily consumption: spikes, drops, step changes ---------- */
   function analyseDaily(series, now, opt){
     var today = localDay(now);
@@ -319,7 +410,22 @@
 
   function buildFindings(r, opt){
     var f = [], n = r.night, dly = r.daily;
-    if (n.status === 'continuous'){
+    if (n.status === 'continuous' && n.mode === 'base'){
+      var bb = band(n.leakRate), was = round(n.baseBefore * 1000 / 60, 1), now2 = round(n.mnf * 1000 / 60, 1);
+      f.push({
+        type: 'leak', severity: bb.sev === 'low' && n.lossPerDay * 30 > 100 ? 'medium' : bb.sev, confidence: n.confidence,
+        title: 'Base flow has risen: possible leak',
+        summary: 'Lowest flow up from ' + was + ' to ' + now2 + ' L/min since about ' + fmtDate(n.onset),
+        detail: 'This meter reports about every ' + round(r.intervalMin / 60, 1) + ' hours, too far apart to check each night hour by hour, ' +
+                'so it is judged on its base flow: the lowest rate it runs at between two readings each day. That was typically ' + was +
+                ' L/min, and since about ' + fmtDate(n.onset) + ' it has been ' + now2 + ' L/min, holding on nearly all of the ' + n.daysRaised + ' days since' +
+                '. Water that keeps running at a higher minimum usually means something new is left on. The extra ' + n.lossPerDay +
+                ' m³ a day is the likely loss.',
+        causes: 'An extra ' + round(n.leakRate * 1000 / 60, 1) + ' L/min that never stops is most often ' + bb.causes + '.',
+        checks: checksFor('leak', r, opt),
+        m3PerMonth: round(n.lossPerDay * 30, 1)
+      });
+    } else if (n.status === 'continuous'){
       var b = band(n.leakRate);
       var sev = b.sev === 'low' && n.lossPerDay * 30 > 100 ? 'medium' : b.sev;
       f.push({
@@ -438,11 +544,15 @@
       cause.detail += ' It also accounts for ' + listText(parts) + '.';
       cause.explains = explained;
     }
-    if (n.status === 'insufficient' && r.coverage < 0.5) f.push({
+    if (n.status === 'insufficient' && (n.mode === 'base' || r.coverage < 0.5)) f.push({
       type: 'data', severity: 'info', confidence: 'high',
       title: 'Not enough readings to judge',
-      summary: Math.round(r.coverage * 100) + '% of hours covered in the last 28 days',
-      detail: n.reasons.join(' ') + ' Leak and night checks need readings at least every ' + opt.MAX_GAP_H + ' hours.',
+      summary: n.mode === 'base'
+        ? (r.intervalMin ? 'Readings about every ' + round(r.intervalMin / 60, 1) + ' h, too few to compare weeks' : 'No readings')
+        : Math.round(r.coverage * 100) + '% of hours covered in the last 28 days',
+      detail: n.reasons.join(' ') + (n.mode === 'base'
+        ? ' The leak check needs readings at least every ' + opt.LOWRES_MAX_GAP_H + ' hours for 3 weeks or more.'
+        : ' Leak and night checks need readings at least every ' + opt.MAX_GAP_H + ' hours.'),
       causes: 'The meter or its gateway is reporting infrequently or has been offline.',
       checks: ['Check the meter’s signal and battery, and the gateway it reports through.'], m3PerMonth: null
     });
@@ -517,9 +627,11 @@
       var r = {
         id: m.id, name: m.name, type: m.type,
         counter: useLife ? 'lifetime total' : 'daily total', intervalMin: h.intervalMin,
-        coverage: round(covered / (28 * 24), 3)
+        coverage: round(covered / (28 * 24), 3),
+        lowRes: h.intervalMin != null && h.intervalMin > opt.MAX_GAP_H * 60      // readings hours apart
       };
-      r.night = analyseNights(h, m, now, opt);
+      r.night = r.lowRes ? analyseBaseFlow(useLife ? life : dly, !useLife, m, now, opt)
+                         : analyseNights(h, m, now, opt);
       r.daily = analyseDaily(dailyBy[m.id] || [], now, opt);
       r.today = analyseToday(h, m, r.daily, now, opt);
       r.findings = buildFindings(r, opt).sort(function(a, b){ return SEV[a.severity] - SEV[b.severity]; });

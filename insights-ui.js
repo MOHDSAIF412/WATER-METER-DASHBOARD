@@ -43,11 +43,15 @@
       try{
         state.err = null;
         var res = await Promise.all([
-          /* last reading of each counter in every hour, 6 weeks: 14 nights, an hourly profile, and base-flow history */
-          sql('select l.device, l.key, max(l.ts) as ts, max(l.num_value) as v ' +
+          /* last reading of each counter in every hour. The lifetime total over 90 days
+             drives everything (nights, base flow, daily use); the daily counter is only
+             a fallback for meters without one, so 6 weeks of it is enough. Glitches are
+             removed in insights.js, so take the latest reading, not the largest. */
+          sql('select distinct on (l.device, l.key, floor(l.ts/3600000.0)) l.device, l.key, l.ts, l.num_value as v ' +
               'from ts_data l join devices d on d.id=l.device ' +
-              "where d.org='" + ORG + "' and " + TYPES + ' and l.key in (' + K.TOTAL + ',' + K.DAILY + ') and l.ts>=' + (now - 42 * 86400000) + ' ' +
-              'group by l.device, l.key, floor(l.ts/3600000.0)'),
+              "where d.org='" + ORG + "' and " + TYPES + ' and ((l.key=' + K.TOTAL + ' and l.ts>=' + (now - 90 * 86400000) + ') ' +
+              'or (l.key=' + K.DAILY + ' and l.ts>=' + (now - 42 * 86400000) + ')) ' +
+              'order by l.device, l.key, floor(l.ts/3600000.0), l.ts desc'),
           /* daily totals, 90 days: the "normal" for each meter */
           sql('select l.device, date_trunc(\'day\',' + DT + ')::date::text as d, max(l.num_value) as v ' +
               'from ts_data l join devices d on d.id=l.device ' +
@@ -187,7 +191,7 @@
     if (!state.data){
       body.innerHTML = state.err
         ? '<div class="inEmpty">The analysis could not load: ' + esc(state.err) + '<br><br>Try ↻ Refresh.</div>'
-        : '<div class="inEmpty"><div class="spin" style="margin:0 auto 12px"></div>Analysing 6 weeks of readings and 90 days of daily use…</div>';
+        : '<div class="inEmpty"><div class="spin" style="margin:0 auto 12px"></div>Analysing 90 days of meter readings…</div>';
       return;
     }
     sub.textContent = 'Leaks, night use and abnormal consumption · analysed ' +
@@ -326,6 +330,7 @@
     var dd = r.daily, t = r.today;
     h += '<div class="inSec"><h3>Daily consumption vs normal</h3><div class="inGrid"><div class="inChart" style="grid-column:1/-1">' + dailyChart(dd) + '</div></div>' +
       '<table class="inTbl" style="margin-top:8px">' +
+      row('Daily figures measured from', r.dailySource === 'lifetime total' ? 'the lifetime total at each midnight' : 'the platform daily counter') +
       row('Normal day for this meter', dd.normalDay == null ? 'needs 14+ days of history' : num(dd.normalDay, 1) + ' m³') +
       (t ? row('Today so far (to ' + pad(t.hour) + ':00)', num(t.soFar, 1) + ' m³, normally ' + num(t.expectedSoFar, 1) + ' m³ by now' +
                (t.projected != null ? ' · heading for about ' + num(t.projected, 0) + ' m³' : '')) : '') +

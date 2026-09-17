@@ -6,6 +6,7 @@
 <title>3PhTech · Water Meter Command Center</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="auth.js"></script>
+<script src="insights.js"></script>
 <style>
   :root{
     --bg:#eef1f5; --bg2:#e7ecf2; --panel:#ffffff; --panel2:#f4f7fa; --line:#e1e6ed;
@@ -288,7 +289,12 @@
   .mcard .alarmpip{display:inline-block;margin-left:6px;font-size:10px;color:var(--bad)}
   /* meter detail panel */
   #detail{position:absolute;left:14px;bottom:14px;width:420px;max-width:calc(100% - 28px);background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:18px;padding:15px 17px;box-shadow:var(--glasssh), inset 0 1px 0 var(--glasshi);display:none;z-index:12}
-  #detail.open{display:block;animation:rise .22s ease}
+  #detail.open{display:flex;flex-direction:column;animation:rise .22s ease}
+  /* tall content scrolls inside the panel, so the close button is always reachable */
+  #detail{max-height:calc(100% - 28px)}
+  #dBody{overflow-y:auto;min-height:0;margin-right:-8px;padding-right:8px}
+  #dBody::-webkit-scrollbar{width:6px} #dBody::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  .dh{flex-shrink:0}
   @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
   .dh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
   #dName{font-size:15px;font-weight:600}
@@ -304,19 +310,6 @@
   .ctip{fill:var(--text);font-size:9px}
   #dActions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
   #dActions .btn{flex:1;min-width:132px;text-align:center}
-  #dLeak{margin-bottom:10px}
-  #dLeak .lkhead{background:rgba(232,135,30,.12);border:1px solid rgba(232,135,30,.32);border-radius:7px;padding:9px 11px;font-size:12px;color:var(--warn);line-height:1.5}
-  #dLeak .lkhead b{color:var(--text)}
-  #dLeak .lkstats{display:flex;gap:8px;margin-top:8px}
-  #dLeak .lkstats .s{flex:1;background:var(--bg2);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
-  #dLeak .lkstats .sv{font-size:14px;font-weight:700} #dLeak .lkstats .sl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
-  #dLeak .lknight{margin-top:9px}
-  #dLeak .lntitle{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
-  #dLeak svg{width:100%;height:70px;display:block}
-  #dLeak .lnlist{margin-top:7px;max-height:96px;overflow:auto;font-size:11px}
-  #dLeak .lnrow{display:flex;justify-content:space-between;padding:3px 4px;border-bottom:1px solid var(--line)}
-  #dLeak .lnrow b{color:var(--warn)}
-  #dLeak .lkspin{width:22px;height:22px;margin:14px auto}
   /* Each stat tile is a control: the status ones filter the alert list, the rest
      open the panel the number comes from. .active marks the tile driving the list. */
   #statrow .kpi{cursor:pointer;transition:border-color .15s,transform .15s,box-shadow .15s}
@@ -382,8 +375,8 @@
   #connStats .cs-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
   #connStats .cs-v{font-size:20px;font-weight:700;color:var(--text);margin-top:1px}
   #connStats .cs-div{flex:none;width:1px;height:32px;background:var(--line)}
-  #themeBtn,#reportBtn,#keyBtn,#monBtn,#lockBtn{background:var(--glass2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:12px;padding:7px 13px;font-size:14px;font-weight:600;cursor:pointer;color:var(--text);box-shadow:inset 0 1px 0 var(--glasshi)}
-  #reportBtn:hover,#themeBtn:hover,#keyBtn:hover,#monBtn:hover,#lockBtn:hover{border-color:var(--accent)}
+  #themeBtn,#reportBtn,#keyBtn,#lockBtn{background:var(--glass2);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);border-radius:12px;padding:7px 13px;font-size:14px;font-weight:600;cursor:pointer;color:var(--text);box-shadow:inset 0 1px 0 var(--glasshi)}
+  #reportBtn:hover,#themeBtn:hover,#keyBtn:hover,#lockBtn:hover{border-color:var(--accent)}
   #authbox{position:relative}
   #authClose{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer}
   #authClose:hover{color:var(--text)}
@@ -514,7 +507,6 @@
   <span id="conn" style="margin-left:auto">Connecting…</span>
   <button id="keyBtn" title="Add / change API key or token">🔑 Key</button>
   <button id="reportBtn" title="Generate report">📄 Report</button>
-  <button id="monBtn" title="Monitoring — per-meter view">📊</button>
   <button id="lockBtn" title="Lock the dashboard">🔒</button>
   <button id="themeBtn" title="Toggle day / night">🌙</button>
   <button id="alarmBtn" title="Active alarms">🔔<span id="alarmCount">0</span></button>
@@ -558,6 +550,7 @@
   <a data-nav="leak"><span class="ni">&#128167;</span><span class="ntxt">Leak Watch</span></a>
   <a data-nav="logs"><span class="ni">&#128220;</span><span class="ntxt">Logs</span></a>
   <div class="ngrp">Analytics</div>
+  <a data-nav="insights"><span class="ni">&#129504;</span><span class="ntxt">Smart Insights</span></a>
   <a data-nav="consume"><span class="ni">&#128200;</span><span class="ntxt">Consumption</span></a>
   <a data-nav="reports"><span class="ni">&#128196;</span><span class="ntxt">Reports</span></a>
   <a data-nav="trends"><span class="ni">&#128201;</span><span class="ntxt">Trends</span></a>
@@ -579,7 +572,7 @@
   <div class="kpi tot"><div class="kmain"><div class="l">Total Meters</div><div class="v" id="kTot">–</div><div class="sl">All Installed</div></div><div class="kic">💧</div></div>
   <div class="kpi ok"><div class="kmain"><div class="l">Flowing</div><div class="v" id="kOk">–</div><div class="sl">Meters</div></div><div class="kic">〰</div></div>
   <div class="kpi warn"><div class="kmain"><div class="l">No Flow</div><div class="v" id="kWarn">–</div><div class="sl">Meters</div></div><div class="kic">⚠</div></div>
-  <div class="kpi bad"><div class="kmain"><div class="l">Offline</div><div class="v" id="kBad">–</div><div class="sl">Meter</div></div><div class="kic">✖</div></div>
+  <div class="kpi bad"><div class="kmain"><div class="l">Offline</div><div class="v" id="kBad">–</div><div class="sl">Meter</div></div></div>
   <div class="kpi wat"><div class="kmain"><div class="l">Consumed Today</div><div class="v" id="kDay">–</div><div class="sl">Cubic Meters</div></div><div class="kic">📊</div></div>
   <div class="kpi cost"><div class="kmain"><div class="l">Cost Today</div><div class="v" id="kCost">–</div><div class="sl">Total Cost</div></div><div class="kic">💰</div></div>
   <div class="kpi lk"><div class="kmain"><div class="l">Leak Watch</div><div class="v" id="kLeak">–</div><div class="sl">Alerts</div></div><div class="kic">🚨</div></div>
@@ -599,26 +592,20 @@
       <button id="mapZoomIn"  title="Zoom in">+</button>
       <button id="mapZoomOut" title="Zoom out">&#8722;</button>
       <button id="mapReset"   title="Reset view">&#8635;</button>
-      <button id="mapLayers"  title="Toggle legend">&#9707;</button>
     </div>
     <div id="hint">Drag to orbit • Scroll to zoom • Click a meter to focus & report</div>
-    <div id="legend">
-      <div><span class="dot" style="background:#22c55e"></span> Flowing</div>
-      <div><span class="dot" style="background:#f5b81e"></span> No Flow</div>
-      <div><span class="dot" style="background:#f43f5e"></span> Offline</div>
-      <div><span class="dot" style="background:#4a9eff"></span> Connected</div>
-      <div><span class="dot" style="background:#8794a8"></span> No Reading</div>
-    </div>
     <div id="tip"></div>
     <div id="detail">
       <div class="dh">
         <div><span id="dName">—</span> <span id="dBadge" class="badge"></span></div>
         <button id="dClose" title="Close">✕</button>
       </div>
+      <div id="dBody">
       <div id="dStats"></div>
-      <div id="dLeak"></div>
+      <div id="dInsight"></div>
       <div id="dChartWrap"><div id="dChartTitle">30-day daily consumption (m³)</div><div id="dChart"></div></div>
       <div id="dActions"><button class="btn g" id="dReport">📄 Generate report</button><button class="btn" id="dMon" title="Open this meter in the Monitoring view">📊 Monitoring</button></div>
+      </div>
     </div>
     <div id="authbox">
       <button id="authClose" title="Close">✕</button>
@@ -751,12 +738,8 @@ const CONFIG = {
   // ===== EDIT THIS: your water tariff to show consumption as cost =====
   TARIFF: 10.41,           // AED per m³ (= AED 10.41 per 1,000 L) — TCT water rate
   CURRENCY: 'AED',
-  // ===== leak detection: min night flow (1–5am) above this = continuous-flow candidate =====
-  LEAK_MIN: 1.0,           // m³/h (flow meters) or m³/interval (water meters)
-  LEAK_DAYS: 7,
-  // ===== spike / anomaly: today above (factor × 30-day average) = spike =====
-  SPIKE_FACTOR: 1.8,
-  SPIKE_MIN: 5             // ignore meters using less than this m³/day
+  // ===== Smart Insights: leak and abnormal-use rules live in insights.js (DEFAULTS) =====
+  SPIKE_MIN: 5             // m³ - smaller differences from normal are never flagged
 };
 /* keys of interest */
 const K = { TOTAL:949, FLOWCONS:969, FLOWRATE:347, DAILY:1041 };
@@ -921,29 +904,14 @@ async function fetchLive(){
     let c=0,dn=0; conn.forEach(r=>{ r.active?c++:dn++; });
     connStatus={connected:c,disconnected:dn};
   }catch(e){}
-  // minimum night flow (1–5am Dubai) over LEAK_DAYS → continuous-flow / leak candidates
-  const nightMin={};
-  try{
-    const nf=await sql(`
-      select l.device, round(min(l.num_value)::numeric,3) as mn, count(*) as n
-      from ts_data l join devices d on d.id=l.device
-      where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
-        and l.key in (${K.FLOWRATE},${K.FLOWCONS})
-        and l.ts >= ${Date.now()-CONFIG.LEAK_DAYS*86400000}
-        and extract(hour from to_timestamp(l.ts/1000) at time zone 'Asia/Dubai') between 1 and 5
-      group by l.device`);
-    nf.forEach(r=>{ nightMin[r.device]={mn:Number(r.mn), n:Number(r.n)}; });
-  }catch(e){}
   const byDev = {};
   reads.forEach(r=>{ (byDev[r.device]=byDev[r.device]||{})[r.key]=Number(r.num_value); if(!byDev[r.device]._ts||r.ts>byDev[r.device]._ts)byDev[r.device]._ts=Number(r.ts); });
   return status.map(s=>{
     const rv = byDev[s.id]||{};
     const isFlow = s.type==='Flow Meter';
     const flow = isFlow ? (rv[K.FLOWRATE]??0) : (rv[K.FLOWCONS]??0);
-    const nm = nightMin[s.id];
     return { id:s.id, name:s.name.trim(), type:s.type, active:s.active,
-      total: rv[K.TOTAL]??0, flow, daily: rv[K.DAILY]??0, seen: rv._ts||Number(s.sts),
-      nightMin: nm?nm.mn:null, nightN: nm?nm.n:0 };
+      total: rv[K.TOTAL]??0, flow, daily: rv[K.DAILY]??0, seen: rv._ts||Number(s.sts) };
   }).sort((a,b)=>a.name.localeCompare(b.name));
 }
 
@@ -1252,10 +1220,10 @@ function openReportWindow(items,per,monthly,params,prev){
     ${ZONE_ORDER.filter(z=>zmap[z]).map(z=>`<tr><td>${z}</td><td class="r">${zmap[z].n}</td><td class="r">${zmap[z].m3.toFixed(1)}</td><td class="r">${(zmap[z].m3*CONFIG.TARIFF).toLocaleString(undefined,{maximumFractionDigits:0})}</td></tr>`).join('')}</tbody></table></section>`:'';
   // leak candidates among selected
   const leakItems=items.filter(it=>leakOf(it.m));
-  const leakSec=leakItems.length?`<section class="sec"><h2>💧 Leak Watch — Continuous-Flow Candidates</h2>
-    <p style="font-size:12px;color:#66788c;margin:0 0 8px">Water kept moving during 1–5am over the last ${CONFIG.LEAK_DAYS} days — investigate for a leak, stuck valve, or running fixture.</p>
-    <table><thead><tr><th>Meter</th><th>Type</th><th class="r">Overnight baseline (m³)</th></tr></thead><tbody>
-    ${leakItems.map(it=>`<tr><td>${it.m.name}</td><td>${it.m.type}</td><td class="r">${it.m.nightMin}</td></tr>`).join('')}</tbody></table></section>`:'';
+  const leakSec=leakItems.length?`<section class="sec"><h2>💧 Leak Watch — Continuous Night Flow</h2>
+    <p style="font-size:12px;color:#66788c;margin:0 0 8px">Water never stopped between 01:00 and 05:00 on most of the last 7 nights. Loss assumes all of the minimum night flow is waste, so treat it as an upper limit.</p>
+    <table><thead><tr><th>Meter</th><th class="r">Min. night flow</th><th class="r">Nights</th><th>Since</th><th class="r">Loss / month</th><th class="r">Cost / month</th></tr></thead><tbody>
+    ${leakItems.map(it=>{ const nn=insightFor(it.m.id).night; return `<tr><td>${it.m.name}</td><td class="r">${(nn.leakRate*1000/60).toFixed(1)} L/min</td><td class="r">${nn.continuousNights} of ${nn.recentNights}</td><td>${nn.onsetBeforeWindow?'before '+nn.nights[0].date:nn.onset}</td><td class="r">${(nn.lossPerDay*30).toFixed(0)} m³</td><td class="r">${CONFIG.CURRENCY} ${Math.round(nn.lossPerDay*30*CONFIG.TARIFF).toLocaleString()}</td></tr>`; }).join('')}</tbody></table></section>`:'';
   const logo=`<svg viewBox="0 0 100 100" width="46" height="46"><circle cx="50" cy="50" r="37" fill="none" stroke="#3AAA35" stroke-width="8.5" stroke-linecap="round" stroke-dasharray="207 25" transform="rotate(118 50 50)"/><circle cx="40.5" cy="70" r="9.5" fill="#3AAA35"/></svg>`;
   /* ---- plain-English headline so the report opens with the answer ---- */
   const sorted=stats.slice().sort((a,b)=>b.total-a.total);
@@ -1302,7 +1270,7 @@ function openReportWindow(items,per,monthly,params,prev){
       <div class="card"><div class="cl">Avg / day</div><div class="cv">${s.avg.toFixed(2)} m³</div></div>
       <div class="card"><div class="cl">Peak day</div><div class="cv">${s.peak.toFixed(1)} m³</div><div class="cs">${s.peakDate}</div></div>
       <div class="card"><div class="cl">Lifetime total</div><div class="cv">${s.cur.toLocaleString(undefined,{maximumFractionDigits:0})} m³</div></div></div>
-      ${leak?`<div style="margin-top:10px;padding:8px 12px;background:#fff5ea;border:1px solid #f0c890;border-radius:6px;font-size:12px;color:#9a5b12">💧 <b>Possible continuous flow.</b> Water never dropped below ${it.m.nightMin} during 1–5am over the last ${CONFIG.LEAK_DAYS} days — investigate for a leak or stuck valve.</div>`:''}
+      ${leak?`<div style="margin-top:10px;padding:8px 12px;background:#fff5ea;border:1px solid #f0c890;border-radius:6px;font-size:12px;color:#9a5b12">💧 <b>Possible leak.</b> ${insightFor(it.m.id).findings.find(f=>f.type==='leak').detail}</div>`:''}
       <h3>Daily consumption (m³)</h3>${rBar(it.series,RPAL[k%RPAL.length])}
       <p class="chartnote"><span class="sw" style="background:${RPAL[k%RPAL.length]}"></span>daily use
         <span class="sw" style="background:#e0663a;margin-left:10px"></span>highest day (${s.peakDate})
@@ -1402,52 +1370,20 @@ async function openDetail(m){
   document.getElementById('dName').textContent=m.name;
   const st=statusOf(m); const b=document.getElementById('dBadge');
   b.className='badge '+st; b.textContent=LABEL[st];
-  const leak=leakOf(m);
-  const bl=baselineMap[m.id];
   document.getElementById('dStats').innerHTML=`
     <div class="s"><div class="sv">${m.daily.toFixed(1)}</div><div class="sl">m³ today</div></div>
     <div class="s"><div class="sv" style="color:var(--accent2)">${fmtCost(m.daily)}</div><div class="sl">cost today</div></div>
-    <div class="s"><div class="sv">${m.total.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="sl">m³ total</div></div>`
-    + (spikeOf(m)?`<div style="grid-column:1/-1;margin-top:2px;font-size:11.5px;color:var(--bad);background:rgba(224,62,78,.1);border:1px solid rgba(224,62,78,.3);border-radius:6px;padding:7px 10px">⚡ <b>Usage spike:</b> today's ${m.daily.toFixed(1)} m³ is <b>${spikeRatio(m).toFixed(1)}×</b> this meter's 30-day average${bl?` (${bl.toFixed(1)} m³/day)`:''}. Check for a burst or a tap left running.</div>`:'');
+    <div class="s"><div class="sv">${m.total.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="sl">m³ total</div></div>`;
   document.getElementById('dReport').onclick=()=>openReportModal(m.id);
   document.getElementById('dMon').onclick=()=>{ try{localStorage.setItem('wm_last_meter',m.id);}catch(e){}
-    window.location.href='report.html?m='+encodeURIComponent(m.id); };
-  const dLeak=document.getElementById('dLeak');
-  if(leak && haveAuth()){ dLeak.innerHTML='<div class="lkhead">💧 Analysing night flow…<div class="lkspin spin"></div></div>'; renderLeakDetail(m,dLeak); }
-  else if(leak){ dLeak.innerHTML=`<div class="lkhead">💧 <b>Possible continuous flow.</b> Overnight baseline never dropped below <b>${m.nightMin} m³</b> (1–5am). Connect to see the timing detail.</div>`; }
-  else dLeak.innerHTML='';
+    window.location.href='aareport.html?m='+encodeURIComponent(m.id); };
+  // leak, night-use and abnormal-consumption summary (insights-ui.js)
+  if(window.renderDetailInsight) renderDetailInsight(m);
+  else document.getElementById('dInsight').innerHTML='';
   const chart=document.getElementById('dChart'); chart.innerHTML='<div class="spin"></div>';
   if(!haveAuth()){ chart.innerHTML='<div class="cempty">Sign in to load history.</div>'; return; }
   try{ drawChart(await fetchDailySeries(m.id)); }
   catch(e){ chart.innerHTML='<div class="cempty">Could not load history — token may have expired.</div>'; }
-}
-async function fetchLeakDetail(m){
-  const since=Date.now()-CONFIG.LEAK_DAYS*86400000;
-  const key = m.type==='Flow Meter'?K.FLOWRATE:K.FLOWCONS;
-  const rows=await sql(`select ts,num_value from ts_data where device='${m.id}' and key=${key} and ts>=${since}
-    and extract(hour from to_timestamp(ts/1000) at time zone 'Asia/Dubai') between 1 and 5 order by ts asc`);
-  return rows.map(r=>({ts:Number(r.ts),v:Number(r.num_value)}));
-}
-async function renderLeakDetail(m,el){
-  let reads; try{ reads=await fetchLeakDetail(m); }catch(e){ el.innerHTML=`<div class="lkhead">💧 Possible continuous flow (baseline ${m.nightMin} m³). Timing detail unavailable — token may have expired.</div>`; return; }
-  if(!reads.length){ el.innerHTML=`<div class="lkhead">💧 Possible continuous flow (baseline ${m.nightMin} m³).</div>`; return; }
-  const nights=new Set(reads.map(r=>new Date(r.ts+4*3600000).toISOString().slice(0,10)));
-  const totalNight=reads.reduce((a,r)=>a+r.v,0);
-  const baseline=Math.min(...reads.map(r=>r.v));
-  const estDay=(totalNight/CONFIG.LEAK_DAYS);          // avg m³ consumed in the 1–5am window per day
-  // night bar chart
-  const W=380,H=70,n=reads.length,max=Math.max(...reads.map(r=>r.v),0.001),bw=W/n;
-  const bars=reads.map((r,i)=>{const h=Math.max(2,(r.v/max)*58),x=i*bw,y=64-h;const t=new Date(r.ts+4*3600000).toISOString().slice(5,16).replace('T',' ');return `<rect x="${(x+bw*0.12).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw*0.76).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="#e8871e"><title>${t} — ${r.v.toFixed(2)} m³</title></rect>`;}).join('');
-  const list=reads.slice().reverse().slice(0,8).map(r=>{const d=new Date(r.ts+4*3600000);return `<div class="lnrow"><span>${d.toISOString().slice(0,10)} · ${d.toISOString().slice(11,16)}</span><b>${r.v.toFixed(2)} m³</b></div>`;}).join('');
-  el.innerHTML=`
-    <div class="lkhead">💧 <b>Possible continuous flow.</b> Water was still moving during 1–5am on <b>${nights.size}</b> of the last ${CONFIG.LEAK_DAYS} nights — a leak, stuck valve, or running fixture.</div>
-    <div class="lkstats">
-      <div class="s"><div class="sv">${baseline.toFixed(1)} m³</div><div class="sl">Night baseline</div></div>
-      <div class="s"><div class="sv">${estDay.toFixed(1)} m³</div><div class="sl">Night use / day</div></div>
-      <div class="s"><div class="sv" style="color:var(--warn)">${fmtCost(estDay)}</div><div class="sl">Est. cost / day</div></div>
-    </div>
-    <div class="lknight"><div class="lntitle">Night-time flow (1–5am, last ${CONFIG.LEAK_DAYS} days) — hover bars for time</div><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}</svg></div>
-    <div class="lnlist">${list}</div>`;
 }
 document.getElementById('dClose').onclick=()=>document.getElementById('detail').classList.remove('open');
 
@@ -1463,14 +1399,19 @@ function statusOf(m){
 const LABEL={ok:'FLOWING',warn:'NO FLOW',bad:'OFFLINE'};
 const COL={ok:0x56c451,warn:0xff780a,bad:0xf2495c};
 const HEX={ok:'#56c451',warn:'#ff780a',bad:'#f2495c'};
-function leakOf(m){ return m.nightMin!=null && m.nightN>=3 && m.nightMin > CONFIG.LEAK_MIN; }
+/* Leak and spike flags come from Smart Insights (insights.js): continuous night
+   flow judged over 7 nights, and abnormal use against each meter's own normal. */
+function leakOf(m){ const r=window.insightFor&&insightFor(m.id); return !!(r&&r.isLeak); }
+function insightTip(m,type){
+  const r=window.insightFor&&insightFor(m.id), f=r&&r.findings.find(x=>x.type===type);
+  return f ? (f.title+': '+f.summary).replace(/"/g,'&quot;') : '';
+}
 function costOf(m3){ return (m3||0)*CONFIG.TARIFF; }
 function fmtCost(m3){ return CONFIG.CURRENCY+' '+costOf(m3).toLocaleString(undefined,{maximumFractionDigits:2}); }
 function fmtCost0(m3){ return CONFIG.CURRENCY+' '+costOf(m3).toLocaleString(undefined,{maximumFractionDigits:0}); }
 /* ---- spikes / zones / trends ---- */
 let baselineMap={}, trend={wk:null,lastWk:null,moMTD:null,lastMo:null};
-function spikeOf(m){ const b=baselineMap[m.id]; return b>0 && (m.daily||0) > Math.max(CONFIG.SPIKE_MIN, b*CONFIG.SPIKE_FACTOR); }
-function spikeRatio(m){ const b=baselineMap[m.id]; return b>0?((m.daily||0)/b):0; }
+function spikeOf(m){ const r=window.insightFor&&insightFor(m.id); return !!(r&&r.findings.some(f=>f.type==='spike')); }
 const ZONE_ORDER=['Stables','Accommodation','Golf','Commercial','Pump Stations','Other'];
 const ZONE_COL={'Stables':'#3AAA35','Accommodation':'#2f7fbf','Golf':'#8a5cd0','Commercial':'#e8871e','Pump Stations':'#17a2b8','Other':'#8899aa'};
 function zoneOf(name){ const n=(name||'').toLowerCase();
@@ -1790,7 +1731,7 @@ function renderUI(ms){
     const hasAlarm=alarmed.has(m.name);
     const el=document.createElement('div');
     el.className='mcard '+st+(m.id===selectedId?' sel':''); el.dataset.id=m.id;
-    el.innerHTML=`<div class="row1"><div><div class="name">${m.name}${hasAlarm?'<span class="alarmpip" title="Has active alarm">🔔</span>':''}${leak?'<span class="alarmpip" title="Possible continuous flow (night flow '+m.nightMin+')" style="color:var(--warn)">💧</span>':''}${spikeOf(m)?'<span class="alarmpip" title="Usage spike '+spikeRatio(m).toFixed(1)+'× typical" style="color:var(--bad)">⚡</span>':''}</div><div class="type">${m.type}</div></div><span class="badge ${st}">${LABEL[st]}</span></div>
+    el.innerHTML=`<div class="row1"><div><div class="name">${m.name}${hasAlarm?'<span class="alarmpip" title="Has active alarm">🔔</span>':''}${leak?'<span class="alarmpip" title="'+insightTip(m,'leak')+'" style="color:var(--warn)">💧</span>':''}${spikeOf(m)?'<span class="alarmpip" title="'+insightTip(m,'spike')+'" style="color:var(--bad)">⚡</span>':''}</div><div class="type">${m.type}</div></div><span class="badge ${st}">${LABEL[st]}</span></div>
       <div class="row2"><span>Flow <b>${fmtFlow(m)}</b></span><span>Today <b>${m.daily.toFixed(1)} m³</b></span><span>Cost <b>${fmtCost(m.daily)}</b></span><span>${ago(m.seen)}</span></div>
       <div class="actions"><button class="btn g" onclick="event.stopPropagation();openReportModal('${m.id}')">📄 Report</button></div>`;
     el.onclick=()=>focusMeter(m.id,false);
@@ -2018,6 +1959,7 @@ async function refresh(){
     const [ms,al]=await Promise.all([fetchLive(), fetchAlarms().catch(()=>alarms)]);
     alarms=al||[]; apply(ms,'live'); renderAlarms(); setConn('live','● LIVE'); showAuth(false);
     if(!window.__analyticsLoaded){ window.__analyticsLoaded=true; loadAnalytics(); if(window.loadHourly) loadHourly(); }
+    if(window.loadInsights) loadInsights();
   }catch(e){
     console.error(e);
     const msg=(e&&e.message)||String(e);
@@ -2391,7 +2333,6 @@ umBody.addEventListener('change',async e=>{
        umSay('umListMsg',row.dataset.email+' is now '+(sel.value==='admin'?'an administrator':'a viewer')+'.',true); }
   catch(err){ umSay('umListMsg',WMAuth.friendly(err)); loadUserList(); }
 });
-document.getElementById('monBtn').onclick=()=>{ window.location.href='report.html'; };
 
 /* ================= ANIMATE ================= */
 const clock=new THREE.Clock();
@@ -2448,12 +2389,15 @@ animate();
                            var r=document.getElementById('mapReset'); if(r) r.click();
                            flash(document.getElementById('mapPanel')); },
     alarms:    function(){ if(typeof closePanel==='function') closePanel(); drawer(true); },
-    leak:      function(){ filter('leak'); },
+    leak:      function(){ drawer(false); if(typeof closePanel==='function') closePanel();
+                           if(window.openInsights) openInsights({filter:'leak'}); },
+    insights:  function(){ drawer(false); if(typeof closePanel==='function') closePanel();
+                           if(window.openInsights) openInsights({filter:'all'}); },
     logs:      function(){ if(typeof closePanel==='function') closePanel(); drawer(true); },
     consume:   function(){ panel('pZones'); },
     reports:   function(){ drawer(false); document.getElementById('reportBtn').click(); },
     trends:    function(){ panel('pTrend'); },
-    compare:   function(){ window.location.href='report.html'; },
+    compare:   function(){ window.location.href='aareport.html'; },
     devices:   function(){ panel('pConn'); },
     groups:    function(){ panel('pStatus'); },
     users:     function(){ drawer(false); if(typeof closePanel==='function') closePanel(); openUsers(); },
@@ -2619,7 +2563,7 @@ function drawTrendChart(){
 (function(){
   function setR(v){ camRGoal = Math.max(18, Math.min(150, v)); }
   var zi=document.getElementById('mapZoomIn'), zo=document.getElementById('mapZoomOut'),
-      rs=document.getElementById('mapReset'), ly=document.getElementById('mapLayers'),
+      rs=document.getElementById('mapReset'),
       fs=document.getElementById('mapFull'), vs=document.getElementById('viewSel');
   if(zi) zi.onclick=function(){ setR(camRGoal * 0.78); };
   if(zo) zo.onclick=function(){ setR(camRGoal * 1.28); };
@@ -2628,8 +2572,6 @@ function drawTrendChart(){
     camTargetGoal.set(0,3,0);
     if(vs) vs.value='3d';
   };
-  if(ly) ly.onclick=function(){ var l=document.getElementById('legend');
-    if(l) l.style.display = (l.style.display==='none' ? 'block' : 'none'); };
   if(fs) fs.onclick=function(){ var p=document.getElementById('mapPanel');
     if(document.fullscreenElement) document.exitFullscreen();
     else if(p && p.requestFullscreen) p.requestFullscreen(); };
@@ -2646,7 +2588,7 @@ function drawTrendChart(){
     fConn:    function(){ var p=document.getElementById('pConn');   if(p) p.querySelector('.ph').click(); },
     fStatus:  function(){ var p=document.getElementById('pStatus'); if(p) p.querySelector('.ph').click(); },
     fZones:   function(){ document.getElementById('reportBtn').click(); },
-    fTrend:   function(){ window.location.href='report.html'; },
+    fTrend:   function(){ window.location.href='aareport.html'; },
     fAlerts:  function(){ document.getElementById('alarmDrawer').classList.add('open'); },
     fMeters:  function(){ var s=document.getElementById('search'); if(s) s.focus(); }
   };
@@ -2657,5 +2599,6 @@ function drawTrendChart(){
 })();
 
 </script>
+<script src="insights-ui.js"></script>
 </body>
 </html>

@@ -22,7 +22,6 @@
   var HOUR = 3600000, DAY = 86400000, TZ = 4 * HOUR;            // Asia/Dubai, no DST
 
   var DEFAULTS = {
-    TARIFF: 10.41, CURRENCY: 'AED',
     NIGHT_FROM: 1, NIGHT_TO: 5,          // night window, local hours [from, to)
     NIGHTS: 14,                          // nights examined
     RECENT_NIGHTS: 7,                    // continuous flow judged on these
@@ -316,14 +315,13 @@
   function band(rate){ for (var i = 0; i < BANDS.length; i++) if (rate < BANDS[i].max) return BANDS[i]; return BANDS[3]; }
   function pad(n){ return (n < 10 ? '0' : '') + n; }
   function listText(a){ return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
-  function money(m3, opt){ return opt.CURRENCY + ' ' + Math.round(m3 * opt.TARIFF).toLocaleString('en-US'); }
   function fmtDate(key){ return new Date(key + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
 
   function buildFindings(r, opt){
     var f = [], n = r.night, dly = r.daily;
     if (n.status === 'continuous'){
       var b = band(n.leakRate);
-      var sev = b.sev === 'low' && n.lossPerDay * 30 * opt.TARIFF > 1000 ? 'medium' : b.sev;
+      var sev = b.sev === 'low' && n.lossPerDay * 30 > 100 ? 'medium' : b.sev;
       f.push({
         type: 'leak', severity: sev, confidence: n.confidence,
         title: 'Continuous flow: possible leak',
@@ -336,7 +334,7 @@
                 ' At that rate up to ' + n.lossPerDay + ' m³ a day could be lost.',
         causes: 'At this rate it is most often ' + b.causes + '.',
         checks: checksFor('leak', r, opt),
-        m3PerMonth: round(n.lossPerDay * 30, 1), costPerMonth: Math.round(n.lossPerDay * 30 * opt.TARIFF)
+        m3PerMonth: round(n.lossPerDay * 30, 1)
       });
     }
     if (n.elevated && n.status !== 'continuous'){
@@ -351,7 +349,7 @@
           ? 'Usually a longer irrigation or filling schedule, a zone or float valve that stayed open, or a leak downstream.'
           : 'Usually a new night-time activity, equipment left running, or the early stage of a leak.',
         checks: checksFor('night', r, opt),
-        m3PerMonth: round(n.elevatedExtraPerNight * 30, 1), costPerMonth: Math.round(n.elevatedExtraPerNight * 30 * opt.TARIFF)
+        m3PerMonth: round(n.elevatedExtraPerNight * 30, 1)
       });
     }
     /* One cause, one finding. Water lost to a leak or to longer night use also
@@ -381,7 +379,7 @@
                 ' m³ by this time.' + (t.projected ? ' If it continues, today will end near ' + t.projected + ' m³ against a normal ' + t.normalDay + ' m³.' : ''),
         causes: 'A burst or open valve, an extra event or cleaning, a filling operation, or a schedule change.',
         checks: checksFor('spike', r, opt),
-        m3PerMonth: null, costToday: Math.round(Math.max(0, t.soFar - t.expectedSoFar) * opt.TARIFF)
+        m3PerMonth: null, m3Today: round(Math.max(0, t.soFar - t.expectedSoFar), 1)
       });
     }
     dly.findings.forEach(function(x){
@@ -395,9 +393,9 @@
         title: 'Abnormal day on ' + fmtDate(x.date),
         summary: x.value + ' m³ against a normal ' + x.expected + ' m³ (' + round(x.value / Math.max(x.expected, 0.01), 1) + '×)',
         detail: 'On ' + fmtDate(x.date) + ' the meter used ' + x.value + ' m³. Its normal for that day of the week is ' + x.expected +
-                ' m³, so ' + x.excess + ' m³ (' + money(x.excess, opt) + ') more than expected.',
+                ' m³, so ' + x.excess + ' m³ more than expected.',
         causes: 'A one-off event, cleaning or filling, a valve left open for part of the day, or a burst that has since been fixed.',
-        checks: checksFor('spike', r, opt), m3PerMonth: null, costOnce: Math.round(x.excess * opt.TARIFF)
+        checks: checksFor('spike', r, opt), m3PerMonth: null, m3Once: x.excess
       });
       if (x.kind === 'drop') f.push({
         type: 'drop', severity: 'low', confidence: 'medium',
@@ -427,7 +425,7 @@
           : 'Reduced occupancy or activity, a closed zone, or a meter beginning to under-read.',
         checks: checksFor(x.ratio > 1 ? 'stepup' : 'drop', r, opt),
         m3PerMonth: x.ratio > 1 ? round((x.after - x.before) * 30, 1) : null,
-        costPerMonth: x.ratio > 1 ? Math.round((x.after - x.before) * 30 * opt.TARIFF) : null
+        m3PerMonth: x.ratio > 1 ? round((x.after - x.before) * 30, 1) : null
       });
     });
     if (explained.length){
@@ -448,8 +446,8 @@
       causes: 'The meter or its gateway is reporting infrequently or has been offline.',
       checks: ['Check the meter’s signal and battery, and the gateway it reports through.'], m3PerMonth: null
     });
-    /* what it costs matters as much as how unusual it is */
-    f.forEach(function(x){ if (x.severity === 'low' && (x.costPerMonth || 0) >= 2000) x.severity = 'medium'; });
+    /* how much water is involved matters as much as how unusual it is */
+    f.forEach(function(x){ if (x.severity === 'low' && (x.m3PerMonth || 0) >= 200) x.severity = 'medium'; });
     return f;
   }
 
@@ -534,11 +532,11 @@
 
     all.sort(function(a, b){
       return SEV[a.f.severity] - SEV[b.f.severity] ||
-             ((b.f.costPerMonth || b.f.costToday || b.f.costOnce || 0) - (a.f.costPerMonth || a.f.costToday || a.f.costOnce || 0));
+             ((b.f.m3PerMonth || b.f.m3Today || b.f.m3Once || 0) - (a.f.m3PerMonth || a.f.m3Today || a.f.m3Once || 0));
     });
     var ids = Object.keys(results);
     return {
-      generatedAt: now, options: { NIGHT_FROM: opt.NIGHT_FROM, NIGHT_TO: opt.NIGHT_TO, NIGHTS: opt.NIGHTS, TARIFF: opt.TARIFF, CURRENCY: opt.CURRENCY },
+      generatedAt: now, options: { NIGHT_FROM: opt.NIGHT_FROM, NIGHT_TO: opt.NIGHT_TO, NIGHTS: opt.NIGHTS },
       meters: results, findings: all,
       summary: {
         analysed: ids.length,
@@ -546,7 +544,7 @@
         abnormal: ids.filter(function(i){ return results[i].isAbnormal; }).length,
         nightHigh: ids.filter(function(i){ return results[i].findings.some(function(f){ return f.type === 'night'; }); }).length,
         noData: ids.filter(function(i){ return results[i].night.status === 'insufficient'; }).length,
-        lossPerMonth: Math.round(sum(ids.map(function(i){ var n = results[i].night; return n.status === 'continuous' ? n.lossPerDay * 30 : 0; })) * opt.TARIFF)
+        lossM3PerMonth: Math.round(sum(ids.map(function(i){ var n = results[i].night; return n.status === 'continuous' ? n.lossPerDay * 30 : 0; })))
       }
     };
   }

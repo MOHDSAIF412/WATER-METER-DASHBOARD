@@ -26,7 +26,7 @@
 
   function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function num(x, d){ return x == null || !isFinite(x) ? '—' : Number(x).toLocaleString('en-US', { maximumFractionDigits: d == null ? 1 : d }); }
-  function money(v){ return v == null ? '—' : CONFIG.CURRENCY + ' ' + Math.round(v).toLocaleString('en-US'); }
+  function vol(v){ return v == null ? '—' : num(v, v >= 100 ? 0 : 1) + ' m³'; }
   function lpm(m3h){ return m3h == null ? '—' : num(m3h * 1000 / 60, 1) + ' L/min'; }
   function dshort(key){ return new Date(key + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
   function cssv(n, fb){ return getComputedStyle(document.body).getPropertyValue(n).trim() || fb; }
@@ -56,7 +56,7 @@
         ]);
         state.data = WMInsights.analyse(
           { now: now, meters: meters, hourly: res[0], daily: res[1], keys: { lifetime: K.TOTAL, daily: K.DAILY } },
-          { TARIFF: CONFIG.TARIFF, CURRENCY: CONFIG.CURRENCY, MIN_EXCESS_M3: CONFIG.SPIKE_MIN });
+          { MIN_EXCESS_M3: CONFIG.SPIKE_MIN });
         state.at = now;
         window.INSIGHTS = state.data;
       }catch(e){
@@ -113,7 +113,7 @@
     '.inCardF .h{font-size:14px;font-weight:700} .inCardF p{font-size:12.5px;line-height:1.6;margin-top:6px}',
     '.inCardF .k{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-top:10px;font-weight:700}',
     '.inCardF ul{margin:5px 0 0 18px;font-size:12.5px;line-height:1.6}',
-    '.inCardF .cost{margin-top:8px;font-size:12px;color:var(--warn);font-weight:600}',
+    '.inCardF .vol{margin-top:8px;font-size:12px;color:var(--warn);font-weight:600}',
     '.inGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}',
     '.inTbl{width:100%;border-collapse:collapse;font-size:12px}',
     '.inTbl td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top} .inTbl td:first-child{color:var(--muted);width:48%}',
@@ -209,7 +209,7 @@
 
     var h = '<div class="inTiles">' +
       tile(s.leaks, 'Possible leaks', s.leaks ? 'var(--bad)' : 'var(--ok)') +
-      tile(money(s.lossPerMonth), 'Leak cost / month if unfixed', s.lossPerMonth ? 'var(--warn)' : null) +
+      tile(vol(s.lossM3PerMonth), 'Possible leak loss / month', s.lossM3PerMonth ? 'var(--warn)' : null) +
       tile(s.abnormal, 'Abnormal consumption', s.abnormal ? 'var(--warn)' : 'var(--ok)') +
       tile(s.nightHigh, 'Night use above normal', s.nightHigh ? 'var(--warn)' : 'var(--ok)') +
       tile(s.noData, 'Not enough data', s.noData ? 'var(--muted)' : 'var(--ok)') + '</div>';
@@ -220,14 +220,14 @@
     }).join('') + '</div>';
 
     h += list.length ? list.map(function(x){
-      var f = x.f, cost = f.costPerMonth ? money(f.costPerMonth) + '<small>per month if it continues</small>'
-        : f.costToday ? money(f.costToday) + '<small>extra so far today</small>'
-        : f.costOnce ? money(f.costOnce) + '<small>extra that day</small>' : '';
+      var f = x.f, amount = f.m3PerMonth ? vol(f.m3PerMonth) + '<small>per month if it continues</small>'
+        : f.m3Today ? vol(f.m3Today) + '<small>extra so far today</small>'
+        : f.m3Once ? vol(f.m3Once) + '<small>extra that day</small>' : '';
       return '<div class="inRow ' + f.severity + '" data-m="' + esc(x.meter) + '"><div class="ic">' + (ICON[f.type] || '•') + '</div>' +
         '<div><div class="m">' + esc(x.name) + '</div><div class="h">' + esc(f.title) +
         '<span class="inSev ' + f.severity + '">' + SEVTXT[f.severity] + '</span>' +
         (f.confidence ? '<span class="inSev conf">' + f.confidence + ' confidence</span>' : '') + '</div>' +
-        '<div class="su">' + esc(f.summary) + '</div></div><div class="c">' + cost + '</div><div class="go">›</div></div>';
+        '<div class="su">' + esc(f.summary) + '</div></div><div class="c">' + amount + '</div><div class="go">›</div></div>';
     }).join('') : '<div class="inEmpty">Nothing to report in this category.</div>';
 
     if (clear.length) h += '<div class="inSec"><h3>' + clear.length + ' meters with nothing unusual</h3><div class="inOk">' +
@@ -283,9 +283,9 @@
           '<p>' + esc(f.detail) + '</p>' +
           (f.causes ? '<div class="k">Likely causes</div><p style="margin-top:3px">' + esc(f.causes) + '</p>' : '') +
           (f.checks && f.checks.length ? '<div class="k">What to check</div><ul>' + f.checks.map(function(c){ return '<li>' + esc(c) + '</li>'; }).join('') + '</ul>' : '') +
-          (f.costPerMonth ? '<div class="cost">Cost if it continues: ' + money(f.costPerMonth) + ' a month · ' + money(f.costPerMonth * 12.17) + ' a year</div>'
-            : f.costToday ? '<div class="cost">Extra so far today: ' + money(f.costToday) + '</div>'
-            : f.costOnce ? '<div class="cost">Extra that day: ' + money(f.costOnce) + '</div>' : '') +
+          (f.m3PerMonth ? '<div class="vol">Water involved if it continues: ' + vol(f.m3PerMonth) + ' a month</div>'
+            : f.m3Today ? '<div class="vol">Extra so far today: ' + vol(f.m3Today) + '</div>'
+            : f.m3Once ? '<div class="vol">Extra that day: ' + vol(f.m3Once) + '</div>' : '') +
           '</div>';
       }).join('');
     } else {
@@ -303,9 +303,9 @@
       row(n.status === 'continuous' ? 'Minimum night flow (median of the nights it ran)' : 'Minimum night flow (median, last ' + (n.recentNights || 7) + ' nights)', n.mnf == null ? '—' : '<b>' + num(n.mnf, 3) + ' m³/h</b> · ' + lpm(n.mnf)) +
       row('Night volume ' + pad(o.NIGHT_FROM) + '–' + pad(o.NIGHT_TO) + ' (median)', n.nightVolume == null ? '—' : num(n.nightVolume, 2) + ' m³') +
       row('Nights water never stopped', n.status === 'insufficient' ? '—' : n.continuousNights + ' of ' + n.recentNights) +
-      row('Trend in minimum night flow', n.trend ? n.trend + (n.trendPerNight ? ' (' + (n.trendPerNight > 0 ? '+' : '') + lpm(n.trendPerNight).replace(' L/min', ' L/min per night') + ')' : '') : '—') +
+      row('Trend in minimum night flow', n.trend ? n.trend + (Math.abs(n.trendPerNight * 1000 / 60) >= 0.05 ? ' (' + (n.trendPerNight > 0 ? '+' : '') + lpm(n.trendPerNight).replace(' L/min', ' L/min per night') + ')' : '') : '—') +
       (n.status === 'continuous' ? row('Continuous flow since', n.onsetBeforeWindow ? 'before ' + dshort(n.nights[0].date) + ' (whole period)' : dshort(n.onset)) +
-        row('Possible loss (upper limit)', num(n.lossPerDay, 2) + ' m³/day · ' + money(n.lossPerDay * o.TARIFF) + '/day · ' + money(n.lossPerDay * 30 * o.TARIFF) + '/month') : '') +
+        row('Possible loss (upper limit)', num(n.lossPerDay, 2) + ' m³/day · ' + vol(n.lossPerDay * 30) + '/month') : '') +
       (n.nightBaseline != null ? row('Night volume: last 3 nights vs before', num(n.nightRecent, 2) + ' vs ' + num(n.nightBaseline, 2) + ' m³') : '') +
       row('Night profile', n.expectedNightUse ? 'Night use expected (compared with its own nights)' : 'Standard (should stop at night)') +
       row('Usable nights', n.usableNights + ' of ' + o.NIGHTS) +
@@ -316,7 +316,7 @@
     var dd = r.daily, t = r.today;
     h += '<div class="inSec"><h3>Daily consumption vs normal</h3><div class="inGrid"><div class="inChart" style="grid-column:1/-1">' + dailyChart(dd) + '</div></div>' +
       '<table class="inTbl" style="margin-top:8px">' +
-      row('Normal day for this meter', dd.normalDay == null ? 'needs 14+ days of history' : num(dd.normalDay, 1) + ' m³ · ' + money(dd.normalDay * o.TARIFF)) +
+      row('Normal day for this meter', dd.normalDay == null ? 'needs 14+ days of history' : num(dd.normalDay, 1) + ' m³') +
       (t ? row('Today so far (to ' + pad(t.hour) + ':00)', num(t.soFar, 1) + ' m³, normally ' + num(t.expectedSoFar, 1) + ' m³ by now' +
                (t.projected != null ? ' · heading for about ' + num(t.projected, 0) + ' m³' : '')) : '') +
       '</table></div>';
@@ -445,7 +445,7 @@
     if (r.findings.length){
       h = r.findings.slice(0, 2).map(function(f){
         return '<div class="di ' + f.severity + '"><div>' + (ICON[f.type] || '') + '</div><div><b>' + esc(f.title) + '</b><span>' + esc(f.summary) +
-          (f.costPerMonth ? ' · ' + money(f.costPerMonth) + '/month' : '') + '</span></div></div>';
+          (f.m3PerMonth ? ' · ' + vol(f.m3PerMonth) + '/month' : '') + '</span></div></div>';
       }).join('');
       if (r.findings.length > 2) h += '<div class="di"><div></div><div><span>+' + (r.findings.length - 2) + ' more</span></div></div>';
     } else {

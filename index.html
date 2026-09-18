@@ -2147,7 +2147,7 @@ async function lkSubmit(){
 }
 
 /* ================= ACCOUNTS (auth.js) =================
-   With a Firebase project configured in auth.js, the per-browser lock above is
+   With accounts switched on in auth.js, the per-browser lock above is
    replaced by real accounts: one email and password work on every device,
    "Forgot password?" emails a reset link, and administrators add or disable
    people from Users. Without that config nothing here runs.               */
@@ -2167,7 +2167,10 @@ const LK = {  // f = which of: name, email, password, confirm, button are shown
   setup:    {f:[1,1,1,1,1], t:'Create the administrator account', b:'Create admin & open',
              l:'<a data-go="signin">Back to sign in</a>',
              h:'Offered only until the first administrator exists. That account then adds everyone else from Users.'},
-  denied:   {f:[0,0,0,0,1], t:'No access yet',                    b:'Sign out'}
+  denied:   {f:[0,0,0,0,1], t:'No access yet',                    b:'Sign out'},
+  newpw:    {f:[0,0,1,1,1], t:'Choose a new password',            b:'Save password & open',
+             l:'<a data-go="signin">Cancel</a>',
+             h:'You followed a reset link. Pick a password of at least 8 characters; it works on every device.'}
 };
 function cloudMode(mode){
   const m=LK[mode]; lkMode=mode;
@@ -2175,8 +2178,10 @@ function cloudMode(mode){
   [lkName,lkId,lkPw,lkPw2,lkBtn].forEach((el,i)=>{ el.style.display=m.f[i]?'block':'none'; });
   lkTitle.textContent=m.t; lkBtn.textContent=m.b||'';
   lkId.type='email'; lkId.placeholder='Email'; lkId.setAttribute('autocomplete','username');
-  lkPw.setAttribute('autocomplete', mode==='setup'?'new-password':'current-password');
-  lkPw.placeholder = mode==='setup' ? 'Password (at least 8 characters)' : 'Password';
+  var fresh = mode==='setup' || mode==='newpw';
+  lkPw.setAttribute('autocomplete', fresh?'new-password':'current-password');
+  lkPw.placeholder = fresh ? 'New password (at least 8 characters)' : 'Password';
+  lkPw2.placeholder = 'Repeat the password';
   lkPw.value=''; lkPw2.value=''; lkMsg.textContent='';
   lkLinks.innerHTML=m.l||'';
   lkHint.textContent = mode==='denied'
@@ -2194,6 +2199,15 @@ async function cloudSubmit(){
   lkBtn.disabled=true;
   try{
     if(lkMode==='denied'){ await cloudSignOut(); return; }
+    if(lkMode==='newpw'){
+      if(pw.length<8){ lkSay('Use at least 8 characters.',true); return; }
+      if(pw!==lkPw2.value){ lkSay('The two passwords do not match.',true); return; }
+      lkSay('Saving…');
+      await WMAuth.setPassword(pw);
+      history.replaceState(null,'',location.pathname);      // drop the reset link from the address bar
+      await cloudEnter(await WMAuth.session());
+      return;
+    }
     if(lkMode==='reset'){
       if(!email){ lkSay('Enter your email address.',true); return; }
       try{ await WMAuth.sendReset(email); }
@@ -2242,6 +2256,11 @@ async function cloudSignOut(){
 
 async function cloudStart(){
   cloudMode('checking');
+  /* arriving from a "forgot password" email: let them choose a new one */
+  if(/type=recovery/.test(location.hash) || /type=recovery/.test(location.search)){
+    try{ await WMAuth.session(); }catch(e){}
+    cloudMode('newpw'); return;
+  }
   try{ await cloudEnter(await WMAuth.session()); }
   catch(e){ cloudMode('signin'); lkSay(WMAuth.friendly(e),true); }
 }
@@ -2271,7 +2290,7 @@ async function openUsers(){
   if(!CLOUD){
     document.getElementById('umTitle').textContent='Users';
     umBody.innerHTML='<section><h4>Accounts are not switched on</h4><p>This dashboard still uses a login stored in this browser only. '+
-      'To get one login for every device, password reset by email and user management, follow <b>AUTH_SETUP.md</b> and paste the Firebase config into <b>auth.js</b>.</p></section>';
+      'To get one login for every device, password reset by email and user management, put your Supabase project URL and publishable key into <b>auth.js</b>.</p></section>';
     return;
   }
   if(!session) return;
@@ -2288,7 +2307,7 @@ async function openUsers(){
       '<select id="nuRole"><option value="viewer">Viewer</option><option value="admin">Administrator</option></select>'+
       '<input id="nuPass" class="wide" type="password" placeholder="Password (optional)" autocomplete="new-password">'+
       '<button class="umBtn pri" id="nuBtn">Create user</button></div>'+
-      '<div class="umNote">Leave the password empty and they are emailed a link to choose their own. '+
+      '<div class="umNote">Leave the password empty and one is made up for you, shown once — pass it on and they can change it from “Forgot password”. '+
       'Viewers see the dashboard; administrators can also manage users.</div>'+
       '<div class="umMsg" id="nuMsg"></div></section>'+
       '<section><h4>People <span id="umCount"></span></h4><div id="umList"><p>Loading&hellip;</p></div><div class="umMsg" id="umListMsg"></div></section>';
@@ -2315,8 +2334,8 @@ async function createUserFromForm(){
   try{
     const r=await WMAuth.createUser({name,email,role,password:pass});
     ['nuName','nuEmail','nuPass'].forEach(id=>document.getElementById(id).value='');
-    umSay('nuMsg', r.invited ? 'Created. '+r.email+' has been emailed a link to set their password.'
-                             : 'Created. Give '+r.email+' the password you chose.', true);
+    umSay('nuMsg', r.password ? 'Created. Password for '+r.email+': '+r.password+'  (shown once — copy it now)'
+                              : 'Created. Give '+r.email+' the password you chose.', true);
     loadUserList();
   }catch(e){ umSay('nuMsg',WMAuth.friendly(e)); }
   finally{ btn.disabled=false; btn.textContent='Create user'; }

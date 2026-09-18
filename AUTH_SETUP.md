@@ -1,105 +1,63 @@
-# Turning on dashboard accounts
+# Dashboard accounts
 
-Once this is set up, the dashboard gets:
+Accounts are **already switched on**. Nothing needs installing.
 
-- **One login for every device**: sign in with your email and password on any PC or phone.
-- **"Forgot password?"**: people get an email link to choose a new password.
-- **Users screen** (left menu → Users): administrators add people, make them admin or viewer, send reset links, and disable access.
+- **One login for every device.** The same email and password open the dashboard
+  on any PC, laptop or phone — at the office, at home, anywhere.
+- **The password is not kept in this website, and not in Chrome.** It is checked
+  by the login service (Supabase) and stored there only as a hash. What stays in
+  the browser is a session token that expires and can be cancelled.
+- **"Forgot password?"** emails a link to choose a new one.
+- **Users screen** (left menu → Users): administrators add people, make them
+  administrator or viewer, and disable access.
 
-It runs on **Firebase** (Google), on the free Spark plan. Until you finish step 7 the dashboard keeps its old login, which works in one browser only.
+## First run
 
----
+1. Open the dashboard. On the sign-in screen click **First-time setup**.
+   (It only appears while no administrator exists.)
+2. Enter your name, your email and a password of at least 8 characters.
+3. That account becomes the administrator. If the login service asks you to
+   confirm the email address first, open the emailed link, then sign in.
 
-## 1. Create the Firebase project
+After that, **First-time setup** disappears for everyone.
 
-1. Go to <https://console.firebase.google.com> and sign in with your Google account.
-2. **Create a project**, for example `operon-dashboard`. You can turn Google Analytics off.
+## Adding people
 
-## 2. Turn on email and password sign-in
+Left menu → **Users** → *Add a user*: name, email, Viewer or Administrator.
 
-1. **Build → Authentication → Get started**.
-2. **Sign-in method → Email/Password → Enable → Save**. Leave "Email link" off.
-3. **Settings → Authorized domains → Add domain** → `mohdsaif412.github.io`
+- Leave the password box empty and one is made up for you and shown **once** —
+  copy it and pass it on. They can change it from "Forgot password?".
+- Or type a password of at least 8 characters and tell them what it is.
 
-## 3. Create the database
+**Viewer** sees the dashboard. **Administrator** can also manage users.
 
-1. **Build → Firestore Database → Create database**.
-2. Choose a location close to you, then **Start in production mode**.
+To take access away, press **Disable**. They are signed out within two minutes
+and cannot open the dashboard again until you enable them.
 
-## 4. Add the security rules
+## Where it runs
 
-This step matters most. The rules stop anyone who isn't an active user from reading anything.
+| Piece | Where |
+| --- | --- |
+| Accounts and passwords | Supabase project `OPERON Water Dashboard` (Mumbai) |
+| Who may open the dashboard | table `wm_profiles`, guarded by row-level security |
+| Adding and removing accounts | server function `wm-users` — checks the caller is an administrator |
+| Settings in this repo | `auth.js`, top of the file |
 
-1. **Firestore Database → Rules**.
-2. Delete what is there, paste the whole of [`firestore.rules`](firestore.rules), then click **Publish**.
+The project URL and publishable key in `auth.js` are public by design; they
+grant nothing on their own. Every rule is enforced on Supabase's servers, not
+in the page, so editing the page in a browser gains no access.
 
-## 5. Register the dashboard as a web app
+## Reset emails to other people
 
-1. Click the gear icon, then **Project settings → General → Your apps**, then the **`</>`** (Web) icon.
-2. Nickname: `OPERON dashboard`. Leave Firebase Hosting **unticked**. Click **Register app**.
-3. Copy the `firebaseConfig` block. It looks like this:
+Supabase's built-in mail server only sends to addresses on the project's team,
+and is limited to a few messages an hour. That is fine for the administrator.
+For everyone else, either hand over the password made up on the Users screen,
+or add your own SMTP under *Project Settings → Authentication → SMTP* so
+"Forgot password?" reaches any address.
 
-```js
-const firebaseConfig = {
-  apiKey: "AIza…",
-  authDomain: "operon-dashboard.firebaseapp.com",
-  projectId: "operon-dashboard",
-  storageBucket: "operon-dashboard.appspot.com",
-  messagingSenderId: "…",
-  appId: "1:…:web:…"
-};
-```
+## The 3PhTech platform login
 
-These values aren't secret. They only name the project. The rules from step 4 are what protect the data.
-
-## 6. Paste it into `auth.js`
-
-Near the top of [`auth.js`](auth.js), replace
-
-```js
-var FIREBASE_CONFIG = null;
-```
-
-with
-
-```js
-var FIREBASE_CONFIG = {
-  apiKey: "AIza…",
-  authDomain: "operon-dashboard.firebaseapp.com",
-  projectId: "operon-dashboard",
-  storageBucket: "operon-dashboard.appspot.com",
-  messagingSenderId: "…",
-  appId: "1:…:web:…"
-};
-```
-
-Then upload the change to GitHub. The site updates within about a minute.
-
-## 7. Create your administrator account
-
-1. Open the dashboard. You'll see a new **Sign in** screen.
-2. Click **First-time setup**. Enter your name, email and a password (at least 8 characters).
-3. That account is now the administrator. The setup link disappears for good.
-
-## 8. Connect 3PhTech once for everyone
-
-As the administrator, click **🔑 Key** and sign in to the 3PhTech platform. The platform login is saved with the accounts, so every signed-in person on every device goes live without typing it. Use a **read-only** 3PhTech account if you can.
-
-## 9. Add people
-
-**Users → Add a user**: enter a name and email, and pick Viewer or Administrator.
-
-- **Leave the password empty** (recommended): they get an email to choose their own password.
-- Or type a password and give it to them yourself.
-
-**Viewers** see the dashboard. **Administrators** can also manage users.
-
----
-
-## Good to know
-
-- **Reset emails** come from `noreply@<your-project>.firebaseapp.com`. Ask people to check their spam folder the first time. You can change the wording under **Authentication → Templates → Password reset**.
-- **Disable** in the Users screen removes access straight away, even for someone who has the dashboard open. **Enable** gives it back.
-- **Deleting an account completely**: Firebase console → **Authentication → Users → ⋮ → Delete account**. Usually Disable is enough.
-- Administrators can't disable or demote themselves, so the dashboard can never be left without an admin. To hand over, make someone else an administrator first.
-- **Signing out** (🔒 button) also clears the 3PhTech session stored on that device.
+That is separate and stays on each device: the page asks for it once and keeps
+it in that browser. It is deliberately **not** shared through the accounts
+database, so a working platform password is never sitting in a table that every
+signed-in person could read.

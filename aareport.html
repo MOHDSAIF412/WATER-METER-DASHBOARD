@@ -303,7 +303,7 @@ function unlocked(){
   if(!lsGet(CONFIG.LOCK_KEY)) return true;               // no lock configured yet
   return (+lsGet(CONFIG.UNLOCK_KEY)||0) > Date.now();
 }
-/* With accounts switched on (auth.js), boot() decides once Firebase answers. */
+/* With accounts switched on (auth.js), boot() decides once the login service answers. */
 const CLOUD=!!(window.WMAuth && WMAuth.enabled);
 if(!CLOUD){
   if(!unlocked()) document.getElementById('gate').classList.add('on');

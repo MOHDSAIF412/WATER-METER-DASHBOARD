@@ -2,10 +2,17 @@
 // Runs on Supabase, never in the browser, because creating an account needs
 // the service key. Only a signed-in administrator of THIS dashboard may call
 // it: every request's token is checked, then the caller's row in wm_profiles.
+//
+// Staff sign in with a USER NAME. Supabase always needs an email address
+// internally, so one is made up on INTERNAL_DOMAIN, which has no mail server:
+// nothing is ever sent there and nobody has to own a mailbox. An address can
+// still be given instead, and is then marked as real so that account can use
+// "forgot password". Everyone else gets a new password from an administrator.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const INTERNAL_DOMAIN = 'users.operon.invalid';        // .invalid can never be registered or routed
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, content-type, apikey',
@@ -42,32 +49,47 @@ Deno.serve(async (req) => {
   const action = String(body.action || '');
 
   if (action === 'create'){
-    const email = String(body.email || '').trim().toLowerCase();
+    const typed = String(body.login || body.email || '').trim().toLowerCase();
     const name  = String(body.name || '').trim();
     const role  = body.role === 'admin' ? 'admin' : 'viewer';
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return reply({ error: 'Enter a valid email address.' }, 400);
+
+    const isEmail = typed.includes('@');
+    let username = '', email = '';
+    if (isEmail){
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(typed)) return reply({ error: 'That email address is not valid.' }, 400);
+      email = typed;
+    } else {
+      if (!/^[a-z0-9][a-z0-9._-]{2,31}$/.test(typed))
+        return reply({ error: 'A user name is 3 to 32 characters: letters, numbers, dot, dash or underscore.' }, 400);
+      username = typed;
+      email = username + '@' + INTERNAL_DOMAIN;
+    }
 
     const given = typeof body.password === 'string' && body.password.length >= 8 ? body.password : null;
     const password = given || madeUpPassword();
 
     const { data: made, error } = await admin.auth.admin.createUser({
-      email, password, email_confirm: true, user_metadata: { name },
+      email, password, email_confirm: true, user_metadata: { name, username },
     });
-    if (error) return reply({ error: /already/i.test(error.message) ? 'An account with this email already exists.' : error.message }, 400);
+    if (error) return reply({ error: /already/i.test(error.message)
+      ? (isEmail ? 'An account with this email already exists.' : 'That user name is taken.') : error.message }, 400);
 
     const { error: pErr } = await admin.from('wm_profiles').insert({
-      id: made.user.id, email, name, role, active: true, created_by: who.user.id,
+      id: made.user.id, email, username, real_email: isEmail,
+      name, role, active: true, created_by: who.user.id,
     });
     if (pErr){                                   // leave no half-made account behind
       await admin.auth.admin.deleteUser(made.user.id);
-      return reply({ error: pErr.message }, 400);
+      return reply({ error: /duplicate|unique/i.test(pErr.message) ? 'That user name is taken.' : pErr.message }, 400);
     }
-    return reply({ id: made.user.id, email, password: given ? null : password });
+    return reply({ id: made.user.id, login: username || email, username, email,
+                   real_email: isEmail, password: given ? null : password });
   }
 
-  if (action === 'password'){                     // give someone a new password
+  if (action === 'password'){                     // an administrator sets a new password
     const id = String(body.id || '');
-    const password = typeof body.password === 'string' && body.password.length >= 8 ? body.password : madeUpPassword();
+    const given = typeof body.password === 'string' && body.password.length >= 8 ? body.password : null;
+    const password = given || madeUpPassword();
     const { error } = await admin.auth.admin.updateUserById(id, { password });
     if (error) return reply({ error: error.message }, 400);
     return reply({ id, password });

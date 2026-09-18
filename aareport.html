@@ -664,7 +664,7 @@ async function loadMeter(){
     const p=await WMAuth.loadPlatform();
     if(p && p.email && p.pass){ creds={email:p.email, pass:p.pass}; authBlocked=null; }
     document.getElementById('app').style.display='block';
-    document.getElementById('whoami').textContent=s.email;
+    document.getElementById('whoami').textContent=s.login||s.email;
   }else{
     if(!unlocked()) return;
     if(creds) document.getElementById('whoami').textContent=creds.email;

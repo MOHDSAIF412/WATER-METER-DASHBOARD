@@ -2159,14 +2159,14 @@ const lkName=document.getElementById('lkName'), lkLinks=document.getElementById(
 const LK = {  // f = which of: name, email, password, confirm, button are shown
   checking: {f:[0,0,0,0,0], t:'Checking your session…'},
   signin:   {f:[0,1,1,0,1], t:'Sign in',                          b:'Sign in',
-             l:'<a data-go="reset">Forgot password?</a>',
-             h:'One login for every device. Ask an administrator if you need an account.'},
-  reset:    {f:[0,1,0,0,1], t:'Reset your password',              b:'Email me a reset link',
+             l:'<a data-go="reset">Forgotten your password?</a>',
+             h:'Your user name and password work on every device. Ask an administrator if you need an account.'},
+  reset:    {f:[0,1,0,0,1], t:'Forgotten your password',          b:'Email me a reset link',
              l:'<a data-go="signin">Back to sign in</a>',
-             h:'We will email a link to choose a new password. It can take a minute — check spam too.'},
+             h:'Staff user names have no email: ask an administrator to set you a new password. If your login IS an email address, we can send you a link.'},
   setup:    {f:[1,1,1,1,1], t:'Create the administrator account', b:'Create admin & open',
              l:'<a data-go="signin">Back to sign in</a>',
-             h:'Offered only until the first administrator exists. That account then adds everyone else from Users.'},
+             h:'Offered only until the first administrator exists. Use a real email address so you can reset your own password; everyone you add afterwards signs in with a user name.'},
   denied:   {f:[0,0,0,0,1], t:'No access yet',                    b:'Sign out'},
   newpw:    {f:[0,0,1,1,1], t:'Choose a new password',            b:'Save password & open',
              l:'<a data-go="signin">Cancel</a>',
@@ -2177,7 +2177,9 @@ function cloudMode(mode){
   lkScreen.classList.add('on');
   [lkName,lkId,lkPw,lkPw2,lkBtn].forEach((el,i)=>{ el.style.display=m.f[i]?'block':'none'; });
   lkTitle.textContent=m.t; lkBtn.textContent=m.b||'';
-  lkId.type='email'; lkId.placeholder='Email'; lkId.setAttribute('autocomplete','username');
+  lkId.type = mode==='reset' ? 'email' : 'text';
+  lkId.placeholder = mode==='reset' ? 'Your email address' : (mode==='setup' ? 'Your email address' : 'User name');
+  lkId.setAttribute('autocomplete','username');
   var fresh = mode==='setup' || mode==='newpw';
   lkPw.setAttribute('autocomplete', fresh?'new-password':'current-password');
   lkPw.placeholder = fresh ? 'New password (at least 8 characters)' : 'Password';
@@ -2185,7 +2187,7 @@ function cloudMode(mode){
   lkPw.value=''; lkPw2.value=''; lkMsg.textContent='';
   lkLinks.innerHTML=m.l||'';
   lkHint.textContent = mode==='denied'
-    ? 'Signed in as '+(session?session.email:'')+', but this account has not been given access, or it was disabled. Ask an administrator.'
+    ? 'Signed in as '+(session?(session.login||session.email):'')+', but this account has not been given access, or it was disabled. Ask an administrator.'
     : (m.h||'');
   if(mode==='signin') WMAuth.ownerExists().then(has=>{
     if(!has && lkMode==='signin') lkLinks.insertAdjacentHTML('beforeend',' &middot; <a data-go="setup">First-time setup</a>');
@@ -2195,7 +2197,7 @@ function cloudMode(mode){
 lkLinks.onclick=e=>{ const a=e.target.closest('[data-go]'); if(a) cloudMode(a.dataset.go); };
 
 async function cloudSubmit(){
-  const email=lkId.value.trim(), pw=lkPw.value;
+  const email=lkId.value.trim(), pw=lkPw.value;   // a user name, or an email address
   lkBtn.disabled=true;
   try{
     if(lkMode==='denied'){ await cloudSignOut(); return; }
@@ -2210,14 +2212,16 @@ async function cloudSubmit(){
     }
     if(lkMode==='reset'){
       if(!email){ lkSay('Enter your email address.',true); return; }
+      if(email.indexOf('@')<0){ lkSay('“'+email+'” is a user name, not an email address. Ask an administrator to set you a new password.',true); return; }
       try{ await WMAuth.sendReset(email); }
       catch(e){ if(e.code!=='auth/user-not-found') throw e; }   // never reveal whether an account exists
       lkSay('If an account exists for '+email+', a reset link is on its way.');
       return;
     }
     if(lkMode==='setup' && !lkName.value.trim()){ lkSay('Enter your name.',true); return; }
-    if(!email||!pw){ lkSay('Enter your email and password.',true); return; }
+    if(!email||!pw){ lkSay('Enter your user name and password.',true); return; }
     if(lkMode==='setup'){
+      if(email.indexOf('@')<0){ lkSay('Use a real email address for the administrator account, so you can reset your own password.',true); return; }
       if(pw.length<8){ lkSay('Use at least 8 characters for the password.',true); return; }
       if(pw!==lkPw2.value){ lkSay('The two passwords do not match.',true); return; }
       lkSay('Creating the administrator account…');
@@ -2242,7 +2246,7 @@ async function cloudEnter(s){
     if(!prof || prof.active!==true){ cloudSignOut(); return; }   // disabled by an admin while open
     session.profile=prof; session.admin=prof.role==='admin';
   });
-  document.getElementById('lockBtn').title='Sign out ('+s.email+')';
+  document.getElementById('lockBtn').title='Sign out ('+(s.login||s.email)+')';
   revealApp();
 }
 
@@ -2297,24 +2301,28 @@ async function openUsers(){
   const p=session.profile||{};
   document.getElementById('umTitle').textContent=session.admin?'Users':'My account';
   let h='<section><h4>My account</h4><div class="umRow" style="justify-content:space-between">'+
-    '<p><b>'+umEsc(p.name||session.email)+'</b> &middot; '+umEsc(session.email)+' &middot; '+(session.admin?'Administrator':'Viewer')+'</p>'+
-    '<div class="umRow"><button class="umBtn" id="umMyReset">Change my password</button><button class="umBtn warn" id="umSignOut">Sign out</button></div></div>'+
+    '<p><b>'+umEsc(p.name||session.login)+'</b> &middot; '+umEsc(session.login||session.email)+' &middot; '+(session.admin?'Administrator':'Viewer')+'</p>'+
+    '<div class="umRow">'+(session.mailbox?'<button class="umBtn" id="umMyReset">Change my password</button>':'')+
+    '<button class="umBtn warn" id="umSignOut">Sign out</button></div></div>'+
+    (session.mailbox?'':'<div class="umNote">Your login is a user name, so there is no address to email. Ask an administrator to set you a new password.</div>')+
     '<div class="umMsg" id="umMeMsg"></div></section>';
   if(session.admin){
     h+='<section><h4>Add a user</h4><div class="umForm">'+
       '<input id="nuName" placeholder="Name" maxlength="80" autocomplete="off">'+
-      '<input id="nuEmail" type="email" placeholder="Email" autocomplete="off">'+
+      '<input id="nuEmail" type="text" placeholder="User name" autocomplete="off">'+
       '<select id="nuRole"><option value="viewer">Viewer</option><option value="admin">Administrator</option></select>'+
       '<input id="nuPass" class="wide" type="password" placeholder="Password (optional)" autocomplete="new-password">'+
       '<button class="umBtn pri" id="nuBtn">Create user</button></div>'+
-      '<div class="umNote">Leave the password empty and one is made up for you, shown once — pass it on and they can change it from “Forgot password”. '+
+      '<div class="umNote">A user name is 3–32 characters: letters, numbers, dot, dash or underscore — no email address needed. '+
+      'Leave the password empty and one is made up for you and shown once. When someone forgets it, use <b>New password</b> on their row. '+
       'Viewers see the dashboard; administrators can also manage users.</div>'+
       '<div class="umMsg" id="nuMsg"></div></section>'+
       '<section><h4>People <span id="umCount"></span></h4><div id="umList"><p>Loading&hellip;</p></div><div class="umMsg" id="umListMsg"></div></section>';
   }
   umBody.innerHTML=h;
   document.getElementById('umSignOut').onclick=()=>cloudSignOut();
-  document.getElementById('umMyReset').onclick=async function(){
+  const myReset=document.getElementById('umMyReset');
+  if(myReset) myReset.onclick=async function(){
     this.disabled=true;
     try{ await WMAuth.sendReset(session.email); umSay('umMeMsg','A link to set a new password was emailed to '+session.email+'.',true); }
     catch(e){ umSay('umMeMsg',WMAuth.friendly(e)); }
@@ -2326,16 +2334,16 @@ async function openUsers(){
 }
 
 async function createUserFromForm(){
-  const name=document.getElementById('nuName').value.trim(), email=document.getElementById('nuEmail').value.trim();
+  const name=document.getElementById('nuName').value.trim(), login=document.getElementById('nuEmail').value.trim();
   const role=document.getElementById('nuRole').value, pass=document.getElementById('nuPass').value;
-  if(!name||!email){ umSay('nuMsg','Enter a name and an email address.'); return; }
-  if(pass && pass.length<8){ umSay('nuMsg','Use at least 8 characters, or leave the password empty to email a link.'); return; }
+  if(!name||!login){ umSay('nuMsg','Enter a name and a user name.'); return; }
+  if(pass && pass.length<8){ umSay('nuMsg','Use at least 8 characters, or leave the password empty to have one made up.'); return; }
   const btn=document.getElementById('nuBtn'); btn.disabled=true; btn.textContent='Creating…';
   try{
-    const r=await WMAuth.createUser({name,email,role,password:pass});
+    const r=await WMAuth.createUser({name,login,role,password:pass});
     ['nuName','nuEmail','nuPass'].forEach(id=>document.getElementById(id).value='');
-    umSay('nuMsg', r.password ? 'Created. Password for '+r.email+': '+r.password+'  (shown once — copy it now)'
-                              : 'Created. Give '+r.email+' the password you chose.', true);
+    umSay('nuMsg', r.password ? 'Created. '+r.login+' signs in with the password '+r.password+' — shown once, copy it now.'
+                              : 'Created. '+r.login+' signs in with the password you chose.', true);
     loadUserList();
   }catch(e){ umSay('nuMsg',WMAuth.friendly(e)); }
   finally{ btn.disabled=false; btn.textContent='Create user'; }
@@ -2349,13 +2357,14 @@ async function loadUserList(){
   document.getElementById('umCount').textContent='('+list.length+')';
   box.innerHTML=list.map(u=>{
     const me=u.uid===session.uid;
-    return '<div class="umUser" data-uid="'+umEsc(u.uid)+'" data-email="'+umEsc(u.email)+'">'+
-      '<div class="who"><b>'+umEsc(u.name||'—')+(me?' (you)':'')+'</b><span>'+umEsc(u.email)+'</span></div>'+
+    return '<div class="umUser" data-uid="'+umEsc(u.uid)+'" data-email="'+umEsc(u.email)+'" data-login="'+umEsc(u.login)+'">'+
+      '<div class="who"><b>'+umEsc(u.name||'—')+(me?' (you)':'')+'</b><span>'+umEsc(u.login)+'</span></div>'+
       '<select data-act="role"'+(me?' disabled title="You cannot change your own role"':'')+'>'+
         '<option value="viewer"'+(u.role==='viewer'?' selected':'')+'>Viewer</option>'+
         '<option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option></select>'+
       '<span class="umPill '+(u.active?'on':'off')+'">'+(u.active?'Active':'Disabled')+'</span>'+
-      '<div class="acts"><button class="umBtn" data-act="reset">Send reset link</button>'+
+      '<div class="acts"><button class="umBtn" data-act="newpw">New password</button>'+
+        (u.mailbox?'<button class="umBtn" data-act="reset">Send reset link</button>':'')+
         (me?'':'<button class="umBtn'+(u.active?' warn':'')+'" data-act="toggle" data-on="'+(u.active?1:0)+'">'+(u.active?'Disable':'Enable')+'</button>')+
       '</div></div>';
   }).join('') || '<p>No users yet.</p>';
@@ -2368,11 +2377,19 @@ umBody.addEventListener('click',async e=>{
   try{
     if(b.dataset.act==='reset'){
       await WMAuth.sendReset(email); umSay('umListMsg','Password reset link emailed to '+email+'.',true);
+    }else if(b.dataset.act==='newpw'){
+      const login=row.dataset.login;
+      const typed=prompt('New password for '+login+'.\n\nType one of at least 8 characters, or leave this empty to have one made up.','');
+      if(typed===null) return;                                   // cancelled
+      if(typed && typed.length<8){ umSay('umListMsg','Use at least 8 characters.'); return; }
+      const r=await WMAuth.resetUserPassword(uid, typed||undefined);
+      umSay('umListMsg', typed ? 'Password changed for '+login+'. Tell them what it is.'
+                               : login+' can now sign in with: '+r.password+'  (shown once — copy it now)', true);
     }else if(b.dataset.act==='toggle'){
       const on=b.dataset.on==='1';
-      if(on && !confirm('Disable '+email+'? They are signed out and cannot open the dashboard until re-enabled.')) return;
+      if(on && !confirm('Disable '+row.dataset.login+'? They are signed out and cannot open the dashboard until re-enabled.')) return;
       await WMAuth.updateUser(uid,{active:!on});
-      umSay('umListMsg',(on?'Disabled ':'Enabled ')+email+'.',true); loadUserList();
+      umSay('umListMsg',(on?'Disabled ':'Enabled ')+row.dataset.login+'.',true); loadUserList();
     }
   }catch(err){ umSay('umListMsg',WMAuth.friendly(err)); }
   finally{ b.disabled=false; }
@@ -2381,7 +2398,7 @@ umBody.addEventListener('change',async e=>{
   const sel=e.target.closest('select[data-act="role"]'); if(!sel) return;
   const row=sel.closest('.umUser');
   try{ await WMAuth.updateUser(row.dataset.uid,{role:sel.value});
-       umSay('umListMsg',row.dataset.email+' is now '+(sel.value==='admin'?'an administrator':'a viewer')+'.',true); }
+       umSay('umListMsg',row.dataset.login+' is now '+(sel.value==='admin'?'an administrator':'a viewer')+'.',true); }
   catch(err){ umSay('umListMsg',WMAuth.friendly(err)); loadUserList(); }
 });
 

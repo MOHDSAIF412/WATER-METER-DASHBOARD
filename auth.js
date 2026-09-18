@@ -7,12 +7,17 @@
    Chrome. The password is never written to the page, to localStorage, or to
    this file - it is sent once to Supabase, which stores only a hash. What the
    browser keeps afterwards is a session token that expires and can be revoked,
-   which is why the SAME email and password work on any computer or phone:
-   sign in from anywhere and you see the same dashboard.
+   which is why the SAME login works on any computer or phone: sign in from
+   anywhere and you see the same dashboard.
 
-   "Forgot password" emails a reset link. Administrators add and remove people
-   from the dashboard's Users screen; that runs on the server (the wm-users
-   function), because creating an account needs a key no browser may hold.
+   Staff sign in with a USER NAME - no email address needed, and no mailbox to
+   own. An administrator gives them a new password when they forget it. The
+   administrator's own account uses a real email address, so it can use the
+   "Forgot password" link without depending on anybody else.
+
+   Administrators add and remove people from the dashboard's Users screen; that
+   runs on the server (the wm-users function), because creating an account
+   needs a key no browser may hold.
 
    Who may read or change what is enforced by row-level security on Supabase's
    servers - not by this file, which anyone can read. The keys below are the
@@ -24,6 +29,22 @@
   var SUPABASE_URL = 'https://ugcclyogdubrjlhwkyew.supabase.co';
   var SUPABASE_KEY = 'sb_publishable_bsIWMjeMrBej7JislwVRHQ_aAQ8bmu7';
   var SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js';
+
+  /* Staff sign in with a user name. Supabase always needs an email address
+     underneath, so one is made up on this domain - .invalid can never be
+     registered or routed, so nothing is ever sent there and nobody needs a
+     mailbox. Type "ahmed" and it becomes ahmed@users.operon.invalid.        */
+  var INTERNAL_DOMAIN = 'users.operon.invalid';
+  function toEmail(login){
+    login = String(login || '').trim();
+    return login.indexOf('@') >= 0 ? login : login.toLowerCase() + '@' + INTERNAL_DOMAIN;
+  }
+  /* what to show a person: their user name, or their address if they have one */
+  function loginOf(p){
+    if (!p) return '';
+    return p.username || String(p.email || '').replace('@' + INTERNAL_DOMAIN, '');
+  }
+  function hasMailbox(p){ return !!(p && p.real_email && String(p.email || '').indexOf('@' + INTERNAL_DOMAIN) < 0); }
 
   var ON = !!(SUPABASE_URL && SUPABASE_KEY);
   var sb = null, ready = null;
@@ -50,15 +71,15 @@
   }
 
   var MSG = {
-    'invalid_credentials':  'Email or password is incorrect.',
-    'invalid_grant':        'Email or password is incorrect.',
+    'invalid_credentials':  'User name or password is incorrect.',
+    'invalid_grant':        'User name or password is incorrect.',
     'email_not_confirmed':  'Confirm your email address first - check your inbox for the link.',
-    'user_already_exists':  'An account with this email already exists.',
-    'email_exists':         'An account with this email already exists.',
+    'user_already_exists':  'That login is already taken.',
+    'email_exists':         'That login is already taken.',
     'weak_password':        'Password is too weak. Use at least 8 characters.',
     'over_email_send_rate_limit': 'Too many emails sent. Wait a few minutes and try again.',
     'over_request_rate_limit':    'Too many attempts. Wait a few minutes and try again.',
-    'validation_failed':    'That email address is not valid.',
+    'validation_failed':    'That login is not valid.',
     'signup_disabled':      'New sign-ups are switched off. Ask an administrator for an account.'
   };
   function friendly(e){
@@ -68,6 +89,7 @@
     if (/Invalid login credentials/i.test(m)) return MSG.invalid_credentials;
     if (/Email not confirmed/i.test(m))       return MSG.email_not_confirmed;
     if (/already registered|already exists/i.test(m)) return MSG.email_exists;
+    if (/Anonymous sign-ins|Signups not allowed/i.test(m)) return MSG.signup_disabled;
     if (/Failed to fetch|NetworkError/i.test(m))     return 'Cannot reach the login service. Check the connection.';
     return m;
   }
@@ -86,6 +108,8 @@
         var p = r.data || null;
         var allowed = !!(p && p.active === true);
         return { uid: user.id, email: user.email, profile: p,
+                 login: loginOf(p) || String(user.email || '').replace('@' + INTERNAL_DOMAIN, ''),
+                 mailbox: hasMailbox(p),
                  allowed: allowed, admin: allowed && p.role === 'admin' };
       });
   }
@@ -103,9 +127,10 @@
       });
   }
 
-  function signIn(email, pass){
+  /* `login` is a user name or an email address - both reach the same account */
+  function signIn(login, pass){
     return boot()
-      .then(function(){ return sb.auth.signInWithPassword({ email: String(email).trim(), password: pass }); })
+      .then(function(){ return sb.auth.signInWithPassword({ email: toEmail(login), password: pass }); })
       .then(function(r){
         if (r.error) fail(r.error);
         return describe(r.data.user).then(function(me){
@@ -116,9 +141,14 @@
 
   function signOut(){ return boot().then(function(){ return sb.auth.signOut(); }); }
 
+  /* Only accounts with a real mailbox can be emailed. A user-name account has
+     no address to send to; an administrator sets its password instead.      */
   function sendReset(email){
+    email = String(email).trim();
+    if (email.indexOf('@') < 0 || email.indexOf('@' + INTERNAL_DOMAIN) >= 0)
+      return Promise.reject(new Error('This login has no email address. Ask an administrator to set a new password for you.'));
     return boot()
-      .then(function(){ return sb.auth.resetPasswordForEmail(String(email).trim(), { redirectTo: here() }); })
+      .then(function(){ return sb.auth.resetPasswordForEmail(email, { redirectTo: here() }); })
       .then(function(r){ if (r.error) fail(r.error); });
   }
 
@@ -190,14 +220,18 @@
     });
   }
 
-  /* o = {name, email, role, password?}. With no password the server makes one
-     and hands it back, so the administrator can pass it on; the person can
-     change it themselves from "Forgot password".                            */
+  /* o = {name, login, role, password?}. `login` is a user name, or an email
+     address for someone who should be able to reset it themselves. With no
+     password the server makes one and hands it back, once, to pass on.      */
   function createUser(o){
-    return callAdmin({ action: 'create', email: o.email, name: o.name, role: o.role, password: o.password || undefined })
-      .then(function(j){ return { uid: j.id, email: j.email, password: j.password || null, invited: false }; });
+    return callAdmin({ action: 'create', login: o.login || o.email, name: o.name, role: o.role,
+                       password: o.password || undefined })
+      .then(function(j){ return { uid: j.id, login: j.login, email: j.email, mailbox: !!j.real_email,
+                                  password: j.password || null }; });
   }
 
+  /* An administrator gives someone a new password. Left empty, the server
+     makes one up and returns it - the only time it is ever shown.           */
   function resetUserPassword(uid, password){
     return callAdmin({ action: 'password', id: uid, password: password || undefined });
   }
@@ -207,7 +241,7 @@
     return boot().then(function(){ return sb.from('wm_profiles').select('*').order('email'); })
       .then(function(r){
         if (r.error) fail(r.error);
-        return (r.data || []).map(function(v){ v.uid = v.id; return v; });
+        return (r.data || []).map(function(v){ v.uid = v.id; v.login = loginOf(v); v.mailbox = hasMailbox(v); return v; });
       });
   }
 
@@ -246,7 +280,7 @@
   window.WMAuth = {
     enabled: ON,
     emulator: false,
-    session: session, signIn: signIn, signOut: signOut, sendReset: sendReset, setPassword: setPassword,
+    session: session, signIn: signIn, loginOf: loginOf, hasMailbox: hasMailbox, signOut: signOut, sendReset: sendReset, setPassword: setPassword,
     ownerExists: ownerExists, createOwner: createOwner,
     createUser: createUser, listUsers: listUsers, updateUser: updateUser,
     resetUserPassword: resetUserPassword, removeUser: removeUser, watchProfile: watchProfile,

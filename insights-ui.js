@@ -13,7 +13,7 @@
   var REFRESH_MS = 30 * 60000;
   var state = { data: null, err: null, loading: null, at: 0, view: 'overview', filter: 'all', meter: null };
 
-  var ICON = { leak: '💧', night: '🌙', spike: '⚡', step: '📈', noflow: '⛔', drop: '📉', data: '📡' };
+  var ICON = { leak: '💧', night: '🌙', spike: '⚡', step: '📈', noflow: '⛔', drop: '📉', data: '📡', silent: '📴' };
   var SEVTXT = { high: 'High', medium: 'Medium', low: 'Low', info: 'Info' };
   var FILTERS = [
     ['all', 'All'], ['leak', 'Leaks'], ['night', 'Night use'], ['abnormal', 'Abnormal use'], ['data', 'Data gaps']
@@ -100,7 +100,7 @@
     '.inRow{display:grid;grid-template-columns:26px 1fr auto 18px;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);',
     '  border-left:3px solid var(--muted);border-radius:10px;margin-bottom:7px;cursor:pointer;background:var(--glass2)}',
     '.inRow:hover{border-color:var(--accent)}',
-    '.inRow.high{border-left-color:var(--bad)} .inRow.medium{border-left-color:var(--warn)} .inRow.low{border-left-color:var(--blue)}',
+    '.inRow.high{border-left-color:var(--bad)} .inRow.medium{border-left-color:var(--warn)} .inRow.low,.inRow.info{border-left-color:var(--blue)}',
     '.inRow .ic{font-size:17px;text-align:center} .inRow .m{font-size:11px;color:var(--muted)} .inRow .h{font-size:13px;font-weight:600;margin:1px 0}',
     '.inRow .su{font-size:11.5px;color:var(--muted)} .inRow .c{text-align:right;font-size:12px;font-weight:700;white-space:nowrap}',
     '.inRow .c small{display:block;font-weight:400;color:var(--muted);font-size:10px} .inRow .go{color:var(--muted)}',

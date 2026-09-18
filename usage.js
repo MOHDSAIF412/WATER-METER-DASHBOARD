@@ -148,12 +148,34 @@
     return { m3: u.m3, estimated: u.estimated, asOf: last.ts, noReadingYet: false };
   }
 
-  /* one row per local day from fromKey to toKey inclusive: { d, v, estimated } (v null = unknown) */
+  /* How much of a day the meter was actually reporting for, 0 to 1. A day is
+     only "covered" where consecutive readings are close enough to account for
+     the water between them; a silence longer than MAX_GAP_H leaves that part
+     of the day unaccounted for. A day with a long outage still has a value -
+     the water is real - but it is NOT a normal day, so anything judging what
+     normal looks like should leave it out.                                   */
+  function coverage(r, from, to){
+    if (!r.length || to <= from) return 0;
+    var span = to - from, seen = 0, limit = MAX_GAP_H * HOUR;
+    for (var i = 1; i < r.length; i++){
+      if (r[i].ts <= from) continue;
+      if (r[i - 1].ts >= to) break;
+      var step = r[i].ts - r[i - 1].ts;
+      if (step > limit || r[i].gap) continue;                       // unaccounted stretch
+      seen += Math.min(r[i].ts, to) - Math.max(r[i - 1].ts, from);
+    }
+    return Math.max(0, Math.min(1, seen / span));
+  }
+
+  /* one row per local day from fromKey to toKey inclusive:
+     { d, v, estimated, covered } (v null = unknown, covered = 0..1)          */
   function daily(r, fromKey, toKey){
     var out = [];
     for (var d = fromKey, g = 0; d <= toKey && g < 5000; d = addDays(d, 1), g++){
-      var u = used(r, dayStart(d), dayStart(addDays(d, 1)));
-      out.push({ d: d, v: u ? u.m3 : null, estimated: u ? u.estimated : false });
+      var a = dayStart(d), b = dayStart(addDays(d, 1));
+      var u = used(r, a, b);
+      out.push({ d: d, v: u ? u.m3 : null, estimated: u ? u.estimated : false,
+                 covered: Math.round(coverage(r, a, b) * 100) / 100 });
     }
     return out;
   }
@@ -209,7 +231,7 @@
   var api = {
     LIFETIME_KEY: LIFETIME_KEY, MAX_GAP_H: MAX_GAP_H, EXACT_GAP_MIN: EXACT_GAP_MIN,
     localDay: localDay, dayStart: dayStart, addDays: addDays, monthStart: monthStart, addMonths: addMonths,
-    clean: clean, valueAt: valueAt, used: used, usedSoFar: usedSoFar, daily: daily, latest: latest,
+    clean: clean, valueAt: valueAt, used: used, usedSoFar: usedSoFar, daily: daily, coverage: coverage, latest: latest,
     offset: offset, register: register,
     fetchRange: fetchRange
   };

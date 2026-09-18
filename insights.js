@@ -42,6 +42,9 @@
     Z: 3.5,                              // robust z-score for "abnormal"
     MIN_EXCESS_M3: 5,                    // ignore differences smaller than this
     BASELINE_DAYS: 56,
+    MIN_DAY_COVER: 0.9,                  // a day the meter was silent for more than a tenth of is not a normal day
+    SILENT_MIN_H: 6,                     // never call a meter silent sooner than this
+    SILENT_FACTOR: 3,                    // ...or before it is this many times overdue for its own habit
     NIGHT_USE_EXPECTED: /irrigation|pump|tank|chiller|cooling|pool|fountain|reservoir/i
   };
 
@@ -283,15 +286,25 @@
   /* ---------- 3. daily consumption: spikes, drops, step changes ---------- */
   function analyseDaily(series, now, opt){
     var today = localDay(now);
-    var byDay = {};
-    series.forEach(function(s){ if (s.d < today && isFinite(s.v)) byDay[s.d] = s.v; });
+    var byDay = {}, partial = {};
+    series.forEach(function(s){
+      if (s.d >= today || !isFinite(s.v)) return;
+      byDay[s.d] = s.v;
+      /* A day the meter spent partly silent still used real water, so it is
+         shown - but it says nothing about a normal day, and letting it into
+         the baseline drags "normal" down and invents a step change the next
+         time the meter reports properly. Golf Academy was silent for 80 h in
+         August; without this, those days made the reopening look like +1800%. */
+      if (s.covered != null && s.covered < opt.MIN_DAY_COVER) partial[s.d] = true;
+    });
     var days = Object.keys(byDay).sort();
-    var res = { series: [], weekday: null, findings: [] };
-    if (days.length < 14){ res.status = 'insufficient'; return res; }
+    var solid = days.filter(function(d){ return !partial[d]; });
+    var res = { series: [], weekday: null, findings: [], partialDays: days.length - solid.length };
+    if (solid.length < 14){ res.status = 'insufficient'; return res; }
 
     function baselineFor(d){
       var from = addDays(d, -opt.BASELINE_DAYS), vals = [], wd = {};
-      days.forEach(function(k){
+      solid.forEach(function(k){
         if (k >= from && k < d){
           vals.push(byDay[k]);
           var w = new Date(k + 'T00:00:00Z').getUTCDay();
@@ -311,7 +324,8 @@
     var show = days.slice(-60);
     show.forEach(function(d){
       var b = baselineFor(d), v = byDay[d], row = { d: d, v: round(v, 2) };
-      if (b){
+      if (partial[d]) row.partial = true;
+      if (b && !partial[d]){
         row.expected = round(b.expected, 2);
         row.lo = round(Math.max(0, b.expected - opt.Z * b.scale), 2);
         row.hi = round(b.expected + opt.Z * b.scale, 2);
@@ -346,7 +360,7 @@
 
     /* step change: the level moved and stayed moved. The split day is the one
        that best divides the last 6 weeks into two flat levels (least squares). */
-    var recentDays = res.series.slice(-42), best = null;
+    var recentDays = res.series.slice(-42).filter(function(x){ return !x.partial; }), best = null;
     function sse(a){ var m = sum(a) / a.length; return sum(a.map(function(x){ return (x - m) * (x - m); })); }
     for (var s = 7; s <= recentDays.length - 5; s++){
       var beforeV = recentDays.slice(0, s).map(function(x){ return x.v; });
@@ -363,6 +377,30 @@
     }
     if (best && !(run >= 2)){
       delete best.score;
+      /* Is this a new level, or the old one coming back? Golf Academy stood
+         nearly idle through the summer and reopened on 20 Aug: against the
+         quiet weeks that reads as +1900%, which is true arithmetic and a
+         useless thing to tell someone. Look further back: if the level before
+         the quiet spell is about where it is now, this is a resumption.     */
+      var quietStart = best.since, qi = solid.indexOf(best.since);
+      while (qi > 0 && byDay[solid[qi - 1]] < 0.5 * best.after){ qi--; quietStart = solid[qi]; }
+      var earlier = solid.slice(Math.max(0, qi - 30), qi).map(function(k){ return byDay[k]; });
+      if (earlier.length >= 7 && quietStart !== best.since){
+        var was = median(earlier);
+        if (was > 0 && Math.abs(best.after - was) <= 0.3 * was && best.after > 1.5 * best.before){
+          best.resumed = true;
+          best.wasBefore = round(was, 2);
+          best.quietFrom = quietStart;
+          best.quietTo = best.since;
+        }
+      }
+      /* after a real change of level, "normal" is the new level, not an
+         average of both sides */
+      var since = res.series.filter(function(x){ return x.d >= best.since && !x.partial; }).map(function(x){ return x.v; });
+      if (since.length >= 7){
+        res.normalDay = round(median(since), 2);
+        res.normalSince = best.since;
+      }
       /* days that simply sit at the new level belong to the step, not separate alarms */
       res.findings = res.findings.filter(function(x){
         if (x.date < best.since) return true;
@@ -373,6 +411,22 @@
       res.findings.push(best);
     }
     return res;
+  }
+
+  /* ---------- 3b. the meter itself has gone quiet ----------
+     Not the same as using no water: the meter has sent nothing at all. Judged
+     against its own habit, so a 7-hourly meter is not accused after 2 hours. */
+  function analyseSilence(readings, now, opt){
+    if (!readings || !readings.length) return { status: 'nodata' };
+    var last = readings[readings.length - 1].ts, ageH = (now - last) / HOUR;
+    var gaps = [];
+    for (var i = Math.max(1, readings.length - 200); i < readings.length; i++)
+      gaps.push((readings[i].ts - readings[i - 1].ts) / HOUR);
+    var usual = gaps.length ? median(gaps) : null;
+    var overdue = usual ? ageH / usual : null;
+    var silent = ageH > opt.SILENT_MIN_H && overdue != null && overdue >= opt.SILENT_FACTOR;
+    return { status: silent ? 'silent' : 'ok', ageH: round(ageH, 1), usualH: usual ? round(usual, 2) : null,
+             overdue: overdue ? round(overdue, 1) : null, lastTs: last };
   }
 
   /* ---------- 4. today so far vs a normal day at the same time ---------- */
@@ -412,6 +466,7 @@
   function fmtDate(key){ return new Date(key + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
 
   function buildFindings(r, opt){
+    var quiet = silenceFinding(r);
     var f = [], n = r.night, dly = r.daily;
     if (n.status === 'continuous' && n.mode === 'base'){
       var bb = band(n.leakRate), was = round(n.baseBefore * 1000 / 60, 1), now2 = round(n.mnf * 1000 / 60, 1);
@@ -523,18 +578,33 @@
         checks: checksFor('noflow', r, opt), m3PerMonth: null
       });
       if (x.kind === 'step') f.push({
-        type: 'step', severity: x.ratio >= 2 ? 'medium' : 'low', confidence: x.days >= 10 ? 'high' : 'medium',
-        title: (x.ratio > 1 ? 'Usage stepped up' : 'Usage stepped down') + ' since ' + fmtDate(x.since),
-        summary: x.before + ' → ' + x.after + ' m³ a day (' + (x.ratio > 1 ? '+' : '') + Math.round((x.ratio - 1) * 100) + '%)',
-        detail: 'For the ' + x.days + ' days since ' + fmtDate(x.since) + ' typical use has been ' + x.after + ' m³ a day, against ' +
-                x.before + ' m³ a day before. The change has held, so it is not a one-off.' +
-                (x.coversToday ? ' Today’s higher use is in line with this new level.' : ''),
-        causes: x.ratio > 1
+        type: 'step', severity: x.resumed ? 'info' : x.ratio >= 2 ? 'medium' : 'low', confidence: x.days >= 10 ? 'high' : 'medium',
+        title: x.resumed ? 'Back in normal use since ' + fmtDate(x.since)
+                          : (x.ratio > 1 ? 'Usage stepped up' : 'Usage stepped down') + ' since ' + fmtDate(x.since),
+        summary: x.resumed
+          ? 'Quiet from ' + fmtDate(x.quietFrom) + ' at ' + x.before + ' m³ a day, now ' + x.after +
+            ' m³ — about what it was before, ' + x.wasBefore + ' m³'
+          : x.before + ' → ' + x.after + ' m³ a day' +
+            (x.before >= 0.1 * x.after ? ' (' + (x.ratio > 1 ? '+' : '') + Math.round((x.ratio - 1) * 100) + '%)'
+                                       : ' (from almost nothing)'),
+        detail: x.resumed
+          ? 'This meter used about ' + x.wasBefore + ' m³ a day, dropped to ' + x.before + ' m³ from ' + fmtDate(x.quietFrom) +
+            ', and has been back at ' + x.after + ' m³ a day for the ' + x.days + ' days since ' + fmtDate(x.since) + '. ' +
+            'Coming back to the level it ran at before is normally a site reopening rather than a fault — it is listed so ' +
+            'the rise is not mistaken for one, and so the quiet spell can be explained if it was not planned.'
+          : 'For the ' + x.days + ' days since ' + fmtDate(x.since) + ' typical use has been ' + x.after + ' m³ a day, against ' +
+            x.before + ' m³ a day before. The change has held, so it is not a one-off.' +
+            (x.coversToday ? ' Today’s higher use is in line with this new level.' : ''),
+        causes: x.resumed
+          ? 'A site or zone back in service after a shutdown, or irrigation started again for the season.'
+          : x.ratio > 1
           ? 'New occupants or activity, a changed irrigation schedule, or a leak that started around that date.'
           : 'Reduced occupancy or activity, a closed zone, or a meter beginning to under-read.',
-        checks: checksFor(x.ratio > 1 ? 'stepup' : 'drop', r, opt),
-        m3PerMonth: x.ratio > 1 ? round((x.after - x.before) * 30, 1) : null,
-        m3PerMonth: x.ratio > 1 ? round((x.after - x.before) * 30, 1) : null
+        checks: x.resumed
+          ? ['Confirm the site or zone really did restart around ' + fmtDate(x.since) + '.',
+             'If nothing restarted, treat it as a new leak and check the night flow.']
+          : checksFor(x.ratio > 1 ? 'stepup' : 'drop', r, opt),
+        m3PerMonth: (x.ratio > 1 && !x.resumed) ? round((x.after - x.before) * 30, 1) : null
       });
     });
     if (explained.length){
@@ -559,9 +629,30 @@
       causes: 'The meter or its gateway is reporting infrequently or has been offline.',
       checks: ['Check the meter’s signal and battery, and the gateway it reports through.'], m3PerMonth: null
     });
+    /* a meter that has gone quiet is reported before anything it might hide */
+    if (quiet) f.unshift(quiet);
     /* how much water is involved matters as much as how unusual it is */
     f.forEach(function(x){ if (x.severity === 'low' && (x.m3PerMonth || 0) >= 200) x.severity = 'medium'; });
     return f;
+  }
+
+  function silenceFinding(r){
+    var s = r.silence;
+    if (!s || s.status !== 'silent') return null;
+    var age = s.ageH >= 48 ? Math.round(s.ageH / 24) + ' days' : Math.round(s.ageH) + ' hours';
+    return {
+      type: 'silent', severity: s.ageH >= 24 ? 'high' : 'medium', confidence: 'high',
+      title: 'Meter has stopped reporting',
+      summary: 'Nothing has arrived for ' + age + ', though this meter normally reports every ' +
+               (s.usualH >= 1 ? round(s.usualH, 1) + ' h' : Math.round(s.usualH * 60) + ' min') + '.',
+      detail: 'While a meter is silent nobody can see a leak behind it, and the water it uses in the meantime ' +
+              'cannot be split between days. The reading itself is not lost: the register counts on regardless, ' +
+              'so the total is picked up when it reports again.',
+      checks: ['Check the meter has power and its aerial is connected.',
+               'Check the site has network coverage — a moved container or new steelwork can block it.',
+               'If it comes back by itself repeatedly, ask 3PhTech to look at the logger.'],
+      since: s.lastTs
+    };
   }
 
   function checksFor(type, r, opt){
@@ -640,9 +731,12 @@
       var days = useLife && life.length > 1
         ? U.daily(life, U.addDays(localDay(life[0].ts), 1), U.addDays(localDay(now), -1)).filter(function(x){ return x.v != null; })
         : [];
-      r.dailySource = days.length >= 14 ? 'lifetime total' : 'daily counter';
+      /* the register is right whenever it exists; the platform's daily counter
+         is a last resort, not a preference */
+      r.dailySource = days.length ? 'lifetime total' : 'daily counter';
       r.daily = analyseDaily(r.dailySource === 'lifetime total' ? days : (dailyBy[m.id] || []), now, opt);
       r.corrections = life.corrections ? life.corrections.length : 0;
+      r.silence = analyseSilence(useLife ? life : dly, now, opt);
       var sf = useLife ? U.usedSoFar(life, dayStart(localDay(now))) : null;
       var soFar = sf && !sf.noReadingYet && now - sf.asOf < opt.MAX_GAP_H * HOUR ? sf.m3
                 : (!useLife && isFinite(m.daily) ? m.daily : null);

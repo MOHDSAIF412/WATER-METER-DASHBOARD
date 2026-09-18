@@ -2247,7 +2247,8 @@ async function cloudEnter(s){
   const p=await WMAuth.loadPlatform();
   if(p && p.email && p.pass){ creds={email:p.email, pass:p.pass}; authBlocked=null; }
   WMAuth.watchProfile(s.uid, prof=>{
-    if(!prof || prof.active!==true){ cloudSignOut(); return; }   // disabled by an admin while open
+    if(!prof){ return; }                                         // could not check - leave them working
+    if(prof.active!==true){ cloudSignOut(); return; }            // disabled by an admin while open
     session.profile=prof; session.admin=prof.role==='admin';
   });
   document.getElementById('lockBtn').title='Sign out ('+(s.login||s.email)+')';
@@ -2262,12 +2263,28 @@ async function cloudSignOut(){
   location.reload();
 }
 
+/* Signing in is meant to last: once this device has been signed in, opening
+   the dashboard goes straight to it. The page shows itself immediately from
+   the sign-in it remembers, while the real check runs behind. Only a definite
+   answer - signed out, or access withdrawn - sends anyone back to the login
+   screen; a slow or missing network never does.                             */
 async function cloudStart(){
   cloudMode('checking');
   /* arriving from a "forgot password" email: let them choose a new one */
   if(/type=recovery/.test(location.hash) || /type=recovery/.test(location.search)){
     try{ await WMAuth.session(); }catch(e){}
     cloudMode('newpw'); return;
+  }
+  const known = WMAuth.cached();
+  if(known && known.allowed){
+    cloudEnter(known);                       // straight in, no waiting
+    WMAuth.session().then(s=>{
+      if(!s){ WMAuth.forget(); location.reload(); return; }        // really signed out
+      if(!s.allowed){ session=s; cloudMode('denied'); return; }    // access withdrawn
+      session=s;                                                   // refresh name and role quietly
+      document.getElementById('lockBtn').title='Sign out ('+(s.login||s.email)+')';
+    }).catch(()=>{});                        // offline: stay where we are
+    return;
   }
   try{ await cloudEnter(await WMAuth.session()); }
   catch(e){ cloudMode('signin'); lkSay(WMAuth.friendly(e),true); }

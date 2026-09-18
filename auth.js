@@ -95,6 +95,27 @@
   }
   function fail(e){ var err = new Error(friendly(e)); err.code = e && e.code; throw err; }
 
+  /* ---- staying signed in ----
+     Supabase already keeps the session on this device and renews it by itself,
+     so signing in once is meant to last. What it cannot do is survive a slow
+     or missing network at the moment the page opens: the check would fail and
+     the dashboard would ask for a password it does not actually need. So the
+     last successful sign-in is remembered here - who you are and what you may
+     see, never the password - and the page opens on that while the real check
+     runs behind it. The password is never written down anywhere: only a token
+     that expires, can be revoked, and is useless on another device.         */
+  var ME = 'wm_me';
+  function remember(me){
+    try{ localStorage.setItem(ME, JSON.stringify({ uid: me.uid, email: me.email, login: me.login,
+           mailbox: me.mailbox, allowed: me.allowed, admin: me.admin, profile: me.profile, at: Date.now() })); }
+    catch(e){}
+  }
+  function cached(){
+    try{ var m = JSON.parse(localStorage.getItem(ME) || 'null'); return m && m.uid ? m : null; }
+    catch(e){ return null; }
+  }
+  function forget(){ try{ localStorage.removeItem(ME); }catch(e){} }
+
   /* the page to come back to after a password reset */
   function here(){ return location.origin + location.pathname.replace(/[^/]*$/, '') + 'index.html'; }
 
@@ -105,12 +126,21 @@
   function describe(user){
     return sb.from('wm_profiles').select('*').eq('id', user.id).maybeSingle()
       .then(function(r){
+        if (r.error) throw r.error;
         var p = r.data || null;
         var allowed = !!(p && p.active === true);
-        return { uid: user.id, email: user.email, profile: p,
-                 login: loginOf(p) || String(user.email || '').replace('@' + INTERNAL_DOMAIN, ''),
-                 mailbox: hasMailbox(p),
-                 allowed: allowed, admin: allowed && p.role === 'admin' };
+        var me = { uid: user.id, email: user.email, profile: p,
+                   login: loginOf(p) || String(user.email || '').replace('@' + INTERNAL_DOMAIN, ''),
+                   mailbox: hasMailbox(p),
+                   allowed: allowed, admin: allowed && p.role === 'admin' };
+        remember(me);
+        return me;
+      }, function(err){
+        /* the account database could not be reached. If this device signed in
+           before, carry on as that person rather than demanding a password. */
+        var m = cached();
+        if (m && m.uid === user.id){ m.offline = true; return m; }
+        throw err;
       });
   }
 
@@ -139,7 +169,7 @@
       });
   }
 
-  function signOut(){ return boot().then(function(){ return sb.auth.signOut(); }); }
+  function signOut(){ forget(); return boot().then(function(){ return sb.auth.signOut(); }); }
 
   /* Only accounts with a real mailbox can be emailed. A user-name account has
      no address to send to; an administrator sets its password instead.      */
@@ -280,7 +310,8 @@
   window.WMAuth = {
     enabled: ON,
     emulator: false,
-    session: session, signIn: signIn, loginOf: loginOf, hasMailbox: hasMailbox, signOut: signOut, sendReset: sendReset, setPassword: setPassword,
+    session: session, signIn: signIn, loginOf: loginOf, hasMailbox: hasMailbox,
+    cached: cached, forget: forget, signOut: signOut, sendReset: sendReset, setPassword: setPassword,
     ownerExists: ownerExists, createOwner: createOwner,
     createUser: createUser, listUsers: listUsers, updateUser: updateUser,
     resetUserPassword: resetUserPassword, removeUser: removeUser, watchProfile: watchProfile,

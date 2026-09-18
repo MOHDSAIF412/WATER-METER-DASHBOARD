@@ -43,16 +43,14 @@
       try{
         state.err = null;
         var res = await Promise.all([
-          /* last reading of each counter in every hour. The lifetime total over 90 days
-             drives everything (nights, base flow, daily use); the daily counter is only
-             a fallback for meters without one, so 6 weeks of it is enough. Glitches are
-             removed in insights.js, so take the latest reading, not the largest. */
-          sql('select distinct on (l.device, l.key, floor(l.ts/3600000.0)) l.device, l.key, l.ts, l.num_value as v ' +
+          /* EVERY lifetime-register reading for 90 days: register glitches can only be
+             corrected from the full sequence (usage.js explains, with the test that
+             proved it). This drives nights, base flow and daily use. */
+          sql('select l.device, l.key, l.ts, l.num_value as v ' +
               'from ts_data l join devices d on d.id=l.device ' +
-              "where d.org='" + ORG + "' and " + TYPES + ' and ((l.key=' + K.TOTAL + ' and l.ts>=' + (now - 90 * 86400000) + ') ' +
-              'or (l.key=' + K.DAILY + ' and l.ts>=' + (now - 42 * 86400000) + ')) ' +
-              'order by l.device, l.key, floor(l.ts/3600000.0), l.ts desc'),
-          /* daily totals, 90 days: the "normal" for each meter */
+              "where d.org='" + ORG + "' and " + TYPES + ' and l.key=' + K.TOTAL + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +
+              'order by l.device, l.ts'),
+          /* the platform's daily counter: only a fallback for a meter with no lifetime register */
           sql('select l.device, date_trunc(\'day\',' + DT + ')::date::text as d, max(l.num_value) as v ' +
               'from ts_data l join devices d on d.id=l.device ' +
               "where d.org='" + ORG + "' and " + TYPES + ' and l.key=' + K.DAILY + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +

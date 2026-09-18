@@ -279,6 +279,7 @@ table.stats td:first-child{text-align:left;font-weight:600}
 </div>
 
 <script src="auth.js"></script>
+<script src="usage.js"></script>
 <script>
 /* ============================================================
    OPERON - per-meter Monitoring page
@@ -356,6 +357,21 @@ const DT="to_timestamp(l.ts/1000) at time zone 'Asia/Dubai'";
 function nf(v,d){ return Number(v).toLocaleString(undefined,
   {minimumFractionDigits:d==null?0:d, maximumFractionDigits:d==null?3:d}); }
 function dubaiKey(ms){ return new Date(ms+4*3600000).toISOString().slice(0,10); }
+
+/* Water used per day for one meter, from the corrected lifetime register
+   (usage.js) - never from the platform's daily counter, which is wrong on some
+   days. Returns {days: {'YYYY-MM-DD': {v, est}}, reg}. Today is "so far".     */
+async function dailyUse(id, from, to){
+  const U=WMUsage, reg=(await U.fetchRange(sql,{devices:[id]},from,to))[id]||[];
+  const today=U.localDay(Date.now()), days={};
+  U.daily(reg, dubaiKey(from), dubaiKey(to)).forEach(function(x){
+    let v=x.v, est=x.estimated;
+    if(x.d===today){ const so=reg.length?U.usedSoFar(reg,U.dayStart(today)):null; v=so&&!so.noReadingYet?so.m3:null; est=!!(so&&so.estimated); }
+    else if(x.d>today) v=null;
+    if(v!=null) days[x.d]={v:v, est:est};
+  });
+  return {days:days, reg:reg};
+}
 function esc(s){ return String(s).replace(/[&<>"]/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function cssv(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
@@ -413,39 +429,35 @@ async function loadKpis(){
   const yr=+mk.slice(0,4), mo=+mk.slice(5,7);
   const pY=(mo===1)?yr-1:yr, pM=(mo===1)?12:mo-1;
   const prevMk=pY+'-'+(pM<10?'0':'')+pM;
-  const prevStart=new Date(prevMk+'-01T00:00:00').getTime();
 
   const latest=await sql("select l.key, l.num_value from ts_data_latest l where l.device='"+m.id+
-    "' and l.key in ("+K.TOTAL+","+K.FLOWCONS+","+K.FLOWRATE+","+K.DAILY+")");
+    "' and l.key in ("+K.TOTAL+","+K.FLOWCONS+","+K.FLOWRATE+")");
   const lv={}; latest.forEach(function(r){ lv[Number(r.key)]=Number(r.num_value); });
 
-  const daily=await sql("select date_trunc('day',"+DT+")::date::text as d, max(l.num_value) as v "+
-    "from ts_data l where l.device='"+m.id+"' and l.key="+K.DAILY+" and l.ts>="+prevStart+
-    " group by d order by d asc");
-
-  let todayV=0, monthV=0, prevV=0, sum=0, n=0;
-  const monthsSeen={};
-  daily.forEach(function(r){
-    const v=Number(r.v), ym=r.d.slice(0,7);
-    if(r.d===todayKey) todayV=v;
-    if(ym===mk) monthV+=v;
-    if(ym===prevMk) prevV+=v;
-    monthsSeen[ym]=(monthsSeen[ym]||0)+v; sum+=v; n++;
-  });
-  const dailyAvg=n?sum/n:0;
-  const mKeys=Object.keys(monthsSeen);
-  const monthlyAvg=mKeys.length?sum/mKeys.length:0;
+  const U=WMUsage, month=todayKey.slice(0,7)+'-01', prevMonth=U.addMonths(month,-1);
+  const use=await dailyUse(m.id, U.dayStart(prevMonth), now), reg=use.reg;
+  const done=Object.keys(use.days).filter(function(d){ return d<todayKey; });
+  const tSo=reg.length?U.usedSoFar(reg,U.dayStart(todayKey)):null;
+  const mSo=reg.length?U.usedSoFar(reg,U.dayStart(month)):null;
+  const pU=reg.length?U.used(reg,U.dayStart(prevMonth),U.dayStart(month)):null;
+  const todayV=tSo&&!tSo.noReadingYet?tSo.m3:null, monthV=mSo?mSo.m3:null, prevV=pU?pU.m3:null;
+  const est=function(o){ return o&&o.estimated?'≈':''; };
+  const dailyAvg=done.length?done.reduce(function(a,d){ return a+use.days[d].v; },0)/done.length:null;
+  const months=[prevV,monthV].filter(function(v){ return v!=null; });
+  const monthlyAvg=months.length?months.reduce(function(a,b){ return a+b; },0)/months.length:null;
+  const regNow=U.register(reg);
+  const shown=function(v,dec){ return v==null?'—':nf(v,dec)+' m³'; };
   const flow=(m.type==='Flow Meter')?(lv[K.FLOWRATE]||0):(lv[K.FLOWCONS]||0);
 
   const cards=[
     [m.active?'g-green':'g-slate','Device Status', m.active?'Connected':'Offline', true],
     ['g-purple','Meter Name', m.name, true],
-    ['g-indigo','Net Meter Reading', nf(lv[K.TOTAL]||0,1)+' m³'],
-    ['g-amber' ,'Total Cons. (Today)', nf(todayV,1)+' m³'],
-    ['g-grass' ,'Daily Avg. Cons.', nf(dailyAvg,3)+' m³'],
-    ['g-orange','Total Cons. (This Month)', nf(monthV,0)+' m³'],
-    ['g-amber' ,'Prev Month Cons.', nf(prevV,0)+' m³'],
-    ['g-grass' ,'Monthly Avg. Cons.', nf(monthlyAvg,1)+' m³'],
+    ['g-indigo','Net Meter Reading', nf(regNow!=null?regNow:(lv[K.TOTAL]||0),1)+' m³'],
+    ['g-amber' ,'Total Cons. (Today)', todayV==null?'—':est(tSo)+shown(todayV,1)],
+    ['g-grass' ,'Daily Avg. Cons.', shown(dailyAvg,3)],
+    ['g-orange','Total Cons. (This Month)', est(mSo)+shown(monthV,0)],
+    ['g-amber' ,'Prev Month Cons.', est(pU)+shown(prevV,0)],
+    ['g-grass' ,'Monthly Avg. Cons.', shown(monthlyAvg,1)],
     ['g-teal'  ,'Current Flow', nf(flow,2)+' m³/h']
   ];
   document.getElementById('kpis').innerHTML=cards.map(function(c){
@@ -459,16 +471,12 @@ async function loadWater(){
   const per=waterPeriod();
   if(per.err){ alert(per.err); return; }
   wPeriod=per;
-  const rows=await sql("select date_trunc('day',"+DT+")::date::text as d, max(l.num_value) as v "+
-    "from ts_data l where l.device='"+current.id+"' and l.key="+K.DAILY+
-    " and l.ts>="+per.from+" and l.ts<="+per.to+
-    " group by d order by d asc");
-  const have={}; rows.forEach(function(r){ have[r.d]=Number(r.v); });
+  const have=(await dailyUse(current.id, per.from, per.to)).days;
   const last=dubaiKey(per.to);
   wSeries=[];
   for(let t=per.from, guard=0; guard<4000; t+=86400000, guard++){
     const k=dubaiKey(t);
-    wSeries.push({d:k, v:(k in have)?have[k]:null});
+    wSeries.push({d:k, v:(k in have)?have[k].v:null, est:(k in have)&&have[k].est});
     if(k>=last) break;
   }
   drawWater(); drawStats();
@@ -506,7 +514,7 @@ function drawWater(){
       if(s.v==null) return;
       const h=Math.max(1,(s.v/max)*ih), x=pl+i*bw+bw*0.22, w=Math.max(1.5,bw*0.56);
       body+='<rect x="'+x.toFixed(1)+'" y="'+Y(s.v).toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+
-            '" fill="'+bar+'" stroke="'+edge+'"><title>'+s.d+': '+nf(s.v,3)+' m³</title></rect>';
+            '" fill="'+bar+'" stroke="'+edge+'"><title>'+s.d+': '+(s.est?'≈ ':'')+nf(s.v,3)+' m³'+(s.est?' (estimated)':'')+'</title></rect>';
     });
   }else{
     let run=[], segs=[];
@@ -525,7 +533,7 @@ function drawWater(){
     });
     wSeries.forEach(function(s,i){
       if(s.v!=null) body+='<rect x="'+(pl+i*bw).toFixed(1)+'" y="'+pt+'" width="'+bw.toFixed(1)+'" height="'+ih+
-        '" fill="transparent"><title>'+s.d+': '+nf(s.v,3)+' m³</title></rect>';
+        '" fill="transparent"><title>'+s.d+': '+(s.est?'≈ ':'')+nf(s.v,3)+' m³'+(s.est?' (estimated)':'')+'</title></rect>';
     });
   }
   const step=bw>=44?1:Math.ceil(44/bw);
@@ -554,11 +562,8 @@ async function loadHeat(){
   const per=heatPeriod();
   if(per.err){ alert(per.err); return; }
   hPeriod=per;
-  const rows=await sql("select date_trunc('day',"+DT+")::date::text as d, max(l.num_value) as v "+
-    "from ts_data l where l.device='"+current.id+"' and l.key="+K.DAILY+
-    " and l.ts>="+per.from+" and l.ts<="+per.to+
-    " group by d order by d asc");
-  hSeries=rows.map(function(r){ return {d:r.d, v:Number(r.v)}; });
+  const days=(await dailyUse(current.id, per.from, per.to)).days;
+  hSeries=Object.keys(days).sort().map(function(d){ return {d:d, v:days[d].v, est:days[d].est}; });
   drawHeat();
 }
 function drawHeat(){
@@ -1144,10 +1149,8 @@ async function runCompare(){
     var items = [];
     for (var i = 0; i < ids.length; i++){
       var m = meters.filter(function(x){ return x.id === ids[i]; })[0];
-      var rows = await sql("select date_trunc('day'," + DT + ")::date::text as d, max(l.num_value) as v " +
-        "from ts_data l where l.device='" + m.id + "' and l.key=" + K.DAILY + " and l.ts>=" + from +
-        " group by d order by d asc");
-      var have = {}; rows.forEach(function(r){ have[r.d] = Number(r.v); });
+      var used = (await dailyUse(m.id, from, Date.now())).days;
+      var have = {}; Object.keys(used).forEach(function(d){ have[d] = used[d].v; });
       items.push({m:m, have:have});
       res.innerHTML = '<div class="empty">Fetched ' + (i+1) + ' of ' + ids.length + '…</div>';
     }

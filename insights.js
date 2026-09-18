@@ -15,14 +15,12 @@
      learns each meter's weekday pattern so a busy race day is not an alarm.
    - Every verdict states its data coverage and confidence. With too few
      readings it says so rather than guessing.
-   - Daily use is measured from the LIFETIME TOTAL counter. Checked against
-     portal exports (Sep 2026): the platform's "Wtr Cons./D" counter resets at
-     varying times after midnight, sometimes fails to reset (700 m³ instead of
-     206), and on 7-hourly water meters sums 3 or 4 readings per day, so it
-     swings 24-53 m³ while real use is a steady 44-46 m³.
+   - Consumption itself (register cleaning, daily totals, today so far) comes
+     from usage.js, the same code every page uses; see why there.
    ============================================================ */
 (function(root){
   'use strict';
+  var U = root.WMUsage || (typeof require === 'function' ? require('./usage.js') : null);
 
   var HOUR = 3600000, DAY = 86400000, TZ = 4 * HOUR;            // Asia/Dubai, no DST
 
@@ -68,44 +66,6 @@
   /* Robust spread with floors, so a very steady meter does not alarm on noise. */
   function spread(values, expected){
     return Math.max(1.4826 * (mad(values) || 0), 0.15 * Math.abs(expected || 0), 0.5);
-  }
-
-  /* ---------- 0. clean a lifetime counter ----------
-     Real counters occasionally report a value hundreds of m³ too low (or too
-     high) for a reading or two and then carry on as before. A reading is a
-     glitch if the counter comes back past it within the next few readings. A
-     drop that never recovers is kept: that is a replaced or reset meter.     */
-  function cleanCounter(readings){
-    var r = readings.filter(function(x){ return isFinite(x.ts) && isFinite(x.v); })
-                    .sort(function(a, b){ return a.ts - b.ts; });
-    var out = [], K = 6;
-    for (var i = 0; i < r.length; i++){
-      var last = out[out.length - 1], c = r[i], ahead = r.slice(i + 1, i + 1 + K);
-      if (last){
-        if (c.v < last.v && ahead.some(function(x){ return x.v >= last.v; })) continue;              // dip that recovers
-        if (c.v > last.v && ahead.some(function(x){ return x.v < c.v && x.v >= last.v; })) continue;  // spike that falls back
-      }
-      out.push(c);
-    }
-    return out;
-  }
-
-  /* daily use from the lifetime counter: its value at each local midnight,
-     interpolated between the readings either side (at most 12 h apart)      */
-  function dailyFromCounter(r, now, opt){
-    if (r.length < 2) return { days: [], at: function(){ return null; } };
-    function at(t){
-      for (var lo = 0, hi = r.length - 1; hi - lo > 1;){ var mid = (lo + hi) >> 1; if (r[mid].ts <= t) lo = mid; else hi = mid; }
-      var a = r[lo], b = r[hi];
-      if (t < a.ts || t > b.ts || b.ts - a.ts > opt.LOWRES_MAX_GAP_H * HOUR || b.v < a.v) return null;
-      return a.v + (b.v - a.v) * (t - a.ts) / Math.max(1, b.ts - a.ts);
-    }
-    var out = [], d = localDay(r[0].ts), today = localDay(now);
-    for (; d < today; d = addDays(d, 1)){
-      var s = at(dayStart(d)), e = at(dayStart(addDays(d, 1)));
-      if (s != null && e != null && e >= s) out.push({ d: d, v: round(e - s, 3) });
-    }
-    return { days: out, at: at };
   }
 
   /* ---------- 1. readings -> water used in each clock hour ----------
@@ -659,7 +619,7 @@
 
     var results = {}, all = [];
     (input.meters || []).forEach(function(m){
-      var life = cleanCounter(hourlyBy[m.id + '|' + keys.lifetime] || []), dly = hourlyBy[m.id + '|' + keys.daily] || [];
+      var life = U.clean(hourlyBy[m.id + '|' + keys.lifetime] || []), dly = hourlyBy[m.id + '|' + keys.daily] || [];
       /* the lifetime counter never resets, so prefer it whenever it reports about as often */
       var useLife = life.length >= 0.8 * dly.length && life.length > 1;
       var h = hourlyUsage(useLife ? life : dly, { MAX_GAP_H: opt.MAX_GAP_H, resets: !useLife });
@@ -677,11 +637,14 @@
                          : analyseNights(h, m, now, opt);
       /* daily totals and today's use from the lifetime counter when there is one;
          the platform's daily counter is only a fallback */
-      var fromLife = useLife ? dailyFromCounter(life, now, opt) : null;
-      r.dailySource = fromLife && fromLife.days.length >= 14 ? 'lifetime total' : 'daily counter';
-      r.daily = analyseDaily(r.dailySource === 'lifetime total' ? fromLife.days : (dailyBy[m.id] || []), now, opt);
-      var start = fromLife ? fromLife.at(dayStart(localDay(now))) : null, lastR = life[life.length - 1];
-      var soFar = fromLife && start != null && lastR && now - lastR.ts < opt.MAX_GAP_H * HOUR ? lastR.v - start
+      var days = useLife && life.length > 1
+        ? U.daily(life, U.addDays(localDay(life[0].ts), 1), U.addDays(localDay(now), -1)).filter(function(x){ return x.v != null; })
+        : [];
+      r.dailySource = days.length >= 14 ? 'lifetime total' : 'daily counter';
+      r.daily = analyseDaily(r.dailySource === 'lifetime total' ? days : (dailyBy[m.id] || []), now, opt);
+      r.corrections = life.corrections ? life.corrections.length : 0;
+      var sf = useLife ? U.usedSoFar(life, dayStart(localDay(now))) : null;
+      var soFar = sf && !sf.noReadingYet && now - sf.asOf < opt.MAX_GAP_H * HOUR ? sf.m3
                 : (!useLife && isFinite(m.daily) ? m.daily : null);
       r.today = r.lowRes ? null : analyseToday(h, soFar, now, opt);
       r.findings = buildFindings(r, opt).sort(function(a, b){ return SEV[a.severity] - SEV[b.severity]; });
@@ -711,7 +674,7 @@
     };
   }
 
-  var api = { analyse: analyse, hourlyUsage: hourlyUsage, cleanCounter: cleanCounter, localDay: localDay, DEFAULTS: DEFAULTS };
+  var api = { analyse: analyse, hourlyUsage: hourlyUsage, localDay: localDay, DEFAULTS: DEFAULTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.WMInsights = api;
 })(this);

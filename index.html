@@ -6,6 +6,7 @@
 <title>3PhTech · Water Meter Command Center</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="auth.js"></script>
+<script src="usage.js"></script>
 <script src="insights.js"></script>
 <style>
   :root{
@@ -753,14 +754,14 @@ const K = { TOTAL:949, FLOWCONS:969, FLOWRATE:347, DAILY:1041 };
    Wtr Cons./D is always included: cost, zone and leak sections are all built on it.
    Any other key found in the data is appended at runtime by discoverParams().     */
 const PARAMS = [
-  {id:'daily', key:K.DAILY,    label:'Wtr Cons./D (m³)',    agg:'max',  dec:3, locked:true },
+  {id:'daily', key:K.DAILY,    label:'Water used / day (m³)', agg:'register', dec:3, locked:true },
   {id:'ttl',   key:K.TOTAL,    label:'Ttl Flow Cons. (m³)', agg:'last', dec:2, on:true     },
   {id:'fcons', key:K.FLOWCONS, label:'Flow Cons. (m³)',     agg:'max',  dec:3, on:true     },
   {id:'frate', key:K.FLOWRATE, label:'Flow Rate (m³/h)',    agg:'avg',  dec:2, on:false    },
   {id:'month', key:null,       label:'Wtr Cons./M (m³)',    agg:'sum',  dec:1, on:false, derived:true }
 ];
-const AGGCOL = {max:'mx', last:'lastv', avg:'av', sum:'mx'};
-const AGGNOTE= {max:'day max', last:'end of day', avg:'day avg', sum:'month total'};
+const AGGCOL = {max:'mx', last:'lastv', avg:'av', sum:'mx', register:'mx'};
+const AGGNOTE= {max:'day max', last:'end of day', avg:'day avg', sum:'month total', register:'from lifetime register'};
 function selectedParams(){ return PARAMS.filter(p=>p.locked||p.on); }
 
 /* ================= AUTH STATE =================
@@ -893,7 +894,7 @@ async function fetchLive(){
     select l.device, l.key, l.num_value, l.ts
     from ts_data_latest l join devices d on d.id=l.device
     where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
-      and l.key in (${K.TOTAL},${K.FLOWCONS},${K.FLOWRATE},${K.DAILY})`);
+      and l.key in (${K.TOTAL},${K.FLOWCONS},${K.FLOWRATE})`);
   // device connectivity across ALL devices (incl. gateway) for the gauge
   try{
     const conn = await sql(`
@@ -904,15 +905,36 @@ async function fetchLive(){
     let c=0,dn=0; conn.forEach(r=>{ r.active?c++:dn++; });
     connStatus={connected:c,disconnected:dn};
   }catch(e){}
+  /* Today's use = lifetime register now minus the register at midnight, from every
+     reading since, glitches corrected (usage.js). The platform's own daily counter
+     is not used: see usage.js for what is wrong with it. */
+  const todayStart = WMUsage.dayStart(WMUsage.localDay(Date.now()));
+  let registers = {}, usageErr = null;
+  try{ registers = await WMUsage.fetchRange(sql, {org:CONFIG.ORG}, todayStart, Date.now()); }
+  catch(e){ usageErr = e.message; console.warn('today\'s usage unavailable:', e.message); }
   const byDev = {};
   reads.forEach(r=>{ (byDev[r.device]=byDev[r.device]||{})[r.key]=Number(r.num_value); if(!byDev[r.device]._ts||r.ts>byDev[r.device]._ts)byDev[r.device]._ts=Number(r.ts); });
   return status.map(s=>{
     const rv = byDev[s.id]||{};
     const isFlow = s.type==='Flow Meter';
     const flow = isFlow ? (rv[K.FLOWRATE]??0) : (rv[K.FLOWCONS]??0);
+    const reg = registers[s.id] || [], so = reg.length ? WMUsage.usedSoFar(reg, todayStart) : null;
+    const last = WMUsage.latest(reg);
     return { id:s.id, name:s.name.trim(), type:s.type, active:s.active,
-      total: rv[K.TOTAL]??0, flow, daily: rv[K.DAILY]??0, seen: rv._ts||Number(s.sts) };
+      // a glitch only ever reads low, so the true register is the higher of the two
+      total: reg.length ? WMUsage.register(reg) : (rv[K.TOTAL]??0),
+      flow,
+      daily: so && !so.noReadingYet ? so.m3 : 0,
+      todayEst: !!(so && so.estimated),
+      todayNone: usageErr!=null || !so || so.noReadingYet,
+      seen: rv._ts||Number(s.sts) };
   }).sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+/* how "today" reads for a meter: measured, estimated (≈) or no reading yet */
+function fmtToday(m){
+  if(m.todayNone) return '—';
+  return (m.todayEst?'≈':'') + m.daily.toFixed(1) + ' m³';
 }
 
 /* ---------- alarms ---------- */
@@ -1041,24 +1063,21 @@ document.getElementById('rGen').onclick=async()=>{
        “vs previous period” column */
     const prev={};
     try{
-      const span=per.to-per.from, PD="to_timestamp(l.ts/1000) at time zone 'Asia/Dubai'";
-      const prows=await sql(`select device, sum(dv) as total from (
-        select l.device as device, date_trunc('day',${PD})::date as day, max(l.num_value) as dv
-        from ts_data l
-        where l.device in (${ids.map(i=>`'${i}'`).join(',')}) and l.key=${K.DAILY}
-          and l.ts>=${per.from-span} and l.ts<${per.from}
-        group by l.device, day) q group by device`);
-      prows.forEach(r=>{ prev[r.device]=Number(r.total); });
+      const span=per.to-per.from;
+      const regs=await WMUsage.fetchRange(sql, {devices:ids}, per.from-span, per.from);
+      ids.forEach(id=>{ const u=WMUsage.used(regs[id]||[], per.from-span, per.from); if(u) prev[id]=u.m3; });
     }catch(e){ console.warn('previous-period comparison unavailable:', e.message); }
     let monthly=[];
-    try{ const DT="to_timestamp(l.ts/1000) at time zone 'Asia/Dubai'";
-      monthly=await sql(`select mon, round(sum(daily)::numeric,0) as total from (
-        select to_char(day,'YYYY-MM') as mon, daily from (
-          select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
-          from ts_data l join devices d on d.id=l.device
-          where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-160*86400000}
-          group by day, l.device) a) b group by mon order by mon desc limit 5`);
-    }catch(e){}
+    try{
+      const U=WMUsage, month=U.localDay(Date.now()).slice(0,7)+'-01';
+      const starts=[-4,-3,-2,-1,0].map(k=>U.addMonths(month,k));
+      const regs=await U.fetchRange(sql, {org:CONFIG.ORG}, U.dayStart(starts[0]), Date.now());
+      monthly=starts.map((m,i)=>{
+        const a=U.dayStart(m), b=i<starts.length-1?U.dayStart(starts[i+1]):null;
+        let t=0; Object.keys(regs).forEach(id=>{ const u=b?U.used(regs[id],a,b):U.usedSoFar(regs[id],a); if(u) t+=u.m3; });
+        return {mon:m.slice(0,7), total:Math.round(t)};
+      }).reverse();
+    }catch(e){ console.warn('monthly totals unavailable:', e.message); }
     openReportWindow(items,per,monthly,params,prev); rModal.classList.remove('open');
   }catch(e){ alert('Report failed: '+e.message); }
   btn.textContent='Generate report'; btn.disabled=false;
@@ -1090,6 +1109,22 @@ async function fetchSeriesFor(id, from, to, params){
     const bucket = byDay[d]=byDay[d]||{};
     params.forEach(p=>{ if(p.key===k){ const v=r[AGGCOL[p.agg]]; if(v!=null) bucket[p.id]=Number(v); } });
   });
+  /* water used per day, and the register at the end of each day, come from the
+     cleaned lifetime register (usage.js), never from the platform's daily counter */
+  if(params.some(p=>p.id==='daily'||p.id==='ttl')){
+    const U = WMUsage, reg = (await U.fetchRange(sql, {devices:[id]}, from, to))[id] || [];
+    const today = U.localDay(Date.now());
+    U.daily(reg, dubaiDayKey(from), dubaiDayKey(to)).forEach(x=>{
+      const bucket = byDay[x.d] = byDay[x.d] || {};
+      let v = x.v, est = x.estimated;
+      if(x.d === today){ const so = reg.length ? U.usedSoFar(reg, U.dayStart(today)) : null; v = so && !so.noReadingYet ? so.m3 : null; est = !!(so && so.estimated); }
+      if(v == null) delete bucket.daily; else { bucket.daily = v; if(est) bucket._est = true; }
+      if(params.some(p=>p.id==='ttl')){
+        const end = U.register(reg, U.dayStart(U.addDays(x.d,1)));
+        if(end != null) bucket.ttl = end; else delete bucket.ttl;
+      }
+    });
+  }
   return Object.keys(byDay).sort().map(d=>({d, vals:byDay[d]}));
 }
 /* Dubai has no DST, so a fixed +4h offset gives the local calendar day. */
@@ -1330,11 +1365,12 @@ function openReportWindow(items,per,monthly,params,prev){
 
 /* ---------- meter detail + 30-day trend chart ---------- */
 async function fetchDailySeries(id){
-  const since = Date.now() - 30*86400000;
-  const rows = await sql(`select ts, num_value from ts_data where device='${id}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
-  const byDay={};
-  rows.forEach(r=>{ byDay[new Date(Number(r.ts)).toISOString().slice(0,10)] = Number(r.num_value); });
-  return Object.entries(byDay).map(([d,v])=>({d,v})).sort((a,b)=>a.d.localeCompare(b.d));
+  const U = WMUsage, today = U.localDay(Date.now()), from = U.addDays(today, -29);
+  const reg = (await U.fetchRange(sql, {devices:[id]}, U.dayStart(from), Date.now()))[id] || [];
+  const days = U.daily(reg, from, U.addDays(today, -1));
+  const so = reg.length ? U.usedSoFar(reg, U.dayStart(today)) : null;
+  if(so && !so.noReadingYet) days.push({d:today, v:so.m3, estimated:so.estimated, partial:true});
+  return days.filter(x=>x.v!=null);
 }
 function drawChart(series){
   const el=document.getElementById('dChart');
@@ -1348,7 +1384,7 @@ function drawChart(series){
   series.forEach((s,i)=>{
     const h=Math.max(1,(s.v/max)*ih);
     const x=pad.l+i*bw, y=pad.t+ih-h;
-    bars+=`<rect x="${(x+bw*0.14).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw*0.72).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="url(#${grad})"><title>${s.d}: ${s.v.toFixed(2)} m³</title></rect>`;
+    bars+=`<rect x="${(x+bw*0.14).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw*0.72).toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="url(#${grad})"><title>${s.d}: ${s.estimated?'≈ ':''}${s.v.toFixed(2)} m³${s.partial?' (today so far)':''}${s.estimated?' (estimated)':''}</title></rect>`;
   });
   // axis labels: first, mid, last date + max value
   const lbl=(i,txt,anchor)=>`<text x="${(pad.l+i*bw+bw/2).toFixed(1)}" y="${H-4}" class="ctip" text-anchor="${anchor}" fill="#8199bd">${txt}</text>`;
@@ -1371,7 +1407,7 @@ async function openDetail(m){
   const st=statusOf(m); const b=document.getElementById('dBadge');
   b.className='badge '+st; b.textContent=LABEL[st];
   document.getElementById('dStats').innerHTML=`
-    <div class="s"><div class="sv">${m.daily.toFixed(1)}</div><div class="sl">m³ today</div></div>
+    <div class="s"><div class="sv">${m.todayNone?'—':(m.todayEst?'≈':'')+m.daily.toFixed(1)}</div><div class="sl">m³ today${m.todayEst?' (est.)':''}</div></div>
     <div class="s"><div class="sv" style="color:var(--accent2)">${fmtCost(m.daily)}</div><div class="sl">cost today</div></div>
     <div class="s"><div class="sv">${m.total.toLocaleString(undefined,{maximumFractionDigits:0})}</div><div class="sl">m³ total</div></div>`;
   document.getElementById('dReport').onclick=()=>openReportModal(m.id);
@@ -1424,34 +1460,30 @@ function zoneOf(name){ const n=(name||'').toLowerCase();
 }
 async function loadAnalytics(){
   if(!haveAuth()) return;
-  const ORG=CONFIG.ORG, DT="to_timestamp(l.ts/1000) at time zone 'Asia/Dubai'";
+  const U = WMUsage, now = Date.now(), today = U.localDay(now);
+  const dow = (new Date(today+'T00:00:00Z').getUTCDay()+6)%7;          // Monday-start weeks
+  const thisMon = U.addDays(today,-dow), lastMon = U.addDays(thisMon,-7), prevMon = U.addDays(thisMon,-14);
+  const month = today.slice(0,7)+'-01', prevMonth = U.addMonths(month,-1);
   try{
-    const base=await sql(`select device as id, round(avg(daily)::numeric,2) as avg30 from (
-      select l.device, date_trunc('day',${DT})::date as day, max(l.num_value) as daily
-      from ts_data l join devices d on d.id=l.device
-      where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-30*86400000}
-      group by l.device, day) x group by device`);
-    baselineMap={}; base.forEach(r=>baselineMap[r.id]=Number(r.avg30));
-  }catch(e){}
-  try{
-    trend.err=null;
-    const wk=await sql(`select wk, round(sum(daily)::numeric,0) as total from (
-      select date_trunc('week', day)::date as wk, daily from (
-        select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
-        from ts_data l join devices d on d.id=l.device
-        where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-28*86400000}
-        group by day, l.device) a) b group by wk order by wk desc limit 3`);
-    trend.wk = wk[1]?Number(wk[1].total):null; trend.lastWk = wk[2]?Number(wk[2].total):null;
-  }catch(e){ trend.err=e.message; console.warn('trend (week) failed:', e.message); }
-  try{
-    const mo=await sql(`select mon, round(sum(daily)::numeric,0) as total from (
-      select to_char(day,'YYYY-MM') as mon, daily from (
-        select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
-        from ts_data l join devices d on d.id=l.device
-        where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-95*86400000}
-        group by day, l.device) a) b group by mon order by mon desc limit 2`);
-    trend.moMTD = mo[0]?Number(mo[0].total):null; trend.lastMo = mo[1]?Number(mo[1].total):null;
-  }catch(e){ trend.err=e.message; console.warn('trend (month) failed:', e.message); }
+    trend.err = null;
+    const regs = await U.fetchRange(sql, {org:CONFIG.ORG}, Math.min(U.dayStart(prevMon), U.dayStart(prevMonth)), now);
+    const total = (a, b) => {                       // b null = up to the latest reading
+      let t = 0, est = false, missing = 0;
+      meters.forEach(m=>{
+        const reg = regs[m.id] || [];
+        const u = reg.length ? (b==null ? U.usedSoFar(reg, a) : U.used(reg, a, b)) : null;
+        if(!u){ missing++; return; }
+        t += u.m3; est = est || u.estimated;
+      });
+      return {t, est, missing};
+    };
+    const wk = total(U.dayStart(lastMon), U.dayStart(thisMon)), lwk = total(U.dayStart(prevMon), U.dayStart(lastMon));
+    const mo = total(U.dayStart(month), null), lmo = total(U.dayStart(prevMonth), U.dayStart(month));
+    trend.wk = Math.round(wk.t); trend.lastWk = Math.round(lwk.t);
+    trend.moMTD = Math.round(mo.t); trend.lastMo = Math.round(lmo.t);
+    trend.est = wk.est || lwk.est || mo.est || lmo.est;
+    trend.missing = Math.max(wk.missing, lwk.missing, mo.missing, lmo.missing);
+  }catch(e){ trend.err = e.message; console.warn('trend failed:', e.message); }
   renderUI(meters); renderCharts(meters); renderTrend();
 }
 
@@ -1732,7 +1764,7 @@ function renderUI(ms){
     const el=document.createElement('div');
     el.className='mcard '+st+(m.id===selectedId?' sel':''); el.dataset.id=m.id;
     el.innerHTML=`<div class="row1"><div><div class="name">${m.name}${hasAlarm?'<span class="alarmpip" title="Has active alarm">🔔</span>':''}${leak?'<span class="alarmpip" title="'+insightTip(m,'leak')+'" style="color:var(--warn)">💧</span>':''}${spikeOf(m)?'<span class="alarmpip" title="'+insightTip(m,'spike')+'" style="color:var(--bad)">⚡</span>':''}</div><div class="type">${m.type}</div></div><span class="badge ${st}">${LABEL[st]}</span></div>
-      <div class="row2"><span>Flow <b>${fmtFlow(m)}</b></span><span>Today <b>${m.daily.toFixed(1)} m³</b></span><span>Cost <b>${fmtCost(m.daily)}</b></span><span>${ago(m.seen)}</span></div>
+      <div class="row2"><span>Flow <b>${fmtFlow(m)}</b></span><span>Today <b title="${m.todayNone?'No reading since midnight yet':m.todayEst?'Estimated: readings either side of midnight are far apart':'Measured'}">${fmtToday(m)}</b></span><span>Cost <b>${fmtCost(m.daily)}</b></span><span>${ago(m.seen)}</span></div>
       <div class="actions"><button class="btn g" onclick="event.stopPropagation();openReportModal('${m.id}')">📄 Report</button></div>`;
     el.onclick=()=>focusMeter(m.id,false);
     list.appendChild(el);
@@ -1742,7 +1774,7 @@ function renderUI(ms){
   if(!list.children.length)
     list.innerHTML='<div id="laEmpty">Nothing matches this filter.<br>All clear here.</div>';
   kTot.textContent=ms.length; kOk.textContent=ok; kWarn.textContent=warn; kBad.textContent=bad;
-  kDay.textContent=day.toFixed(0);
+  kDay.textContent=(ms.some(m=>m.todayEst)?'≈':'')+day.toFixed(0);
   const kc=document.getElementById('kCost'); if(kc) kc.textContent=fmtCost(day);
   const kl=document.getElementById('kLeak'); if(kl) kl.textContent=leaks;
 }
@@ -1911,8 +1943,8 @@ function renderTrend(){
     }
     let d='',cls='flat';
     if(prev!=null && prev>0){ const p=((cur-prev)/prev*100); cls=p>1?'up':(p<-1?'down':'flat'); d=`<span class="trd ${cls}">${p>0?'▲':(p<0?'▼':'■')} ${Math.abs(p).toFixed(0)}%</span>`; }
-    return `<div class="tr"><span class="trl">${label}</span><span class="trv">${cur.toLocaleString()}</span>${d}</div>
-            <div class="tr"><span class="trl"></span><span class="trc">${curLbl} · ${fmtCost0(cur)}${prev!=null?' · prev '+prev.toLocaleString()+' m³':''}</span></div>`;
+    return `<div class="tr"><span class="trl">${label}</span><span class="trv">${trend.est?'≈':''}${cur.toLocaleString()}</span>${d}</div>
+            <div class="tr"><span class="trl"></span><span class="trc">${curLbl} · ${fmtCost0(cur)}${prev!=null?' · prev '+prev.toLocaleString()+' m³':''}${trend.missing?' · '+trend.missing+' meter(s) without data':''}</span></div>`;
   }
   body.innerHTML = block('Week',trend.wk,trend.lastWk,'last full week (m³)') + block('Month',trend.moMTD,trend.lastMo,'this month to date (m³)');
 }
@@ -2459,36 +2491,30 @@ var hourly = {today:[], yest:[], todayTotal:null, yestTotal:null, err:null};
    total so far that day — which is exactly the curve the panel draws. */
 async function loadHourly(){
   if(!haveAuth()) return;
-  var DT = "to_timestamp(l.ts/1000) at time zone 'Asia/Dubai'";
-  var since = Date.now() - 2*86400000;
+  const U = WMUsage, now = Date.now(), today = U.localDay(now), yest = U.addDays(today, -1);
   try{
     hourly.err = null;
-    var rows = await sql(
-      "select day, hr, round(sum(v)::numeric,2) as total from (" +
-      "  select date_trunc('day'," + DT + ")::date::text as day," +
-      "         extract(hour from " + DT + ")::int as hr," +
-      "         l.device, max(l.num_value) as v" +
-      "  from ts_data l join devices d on d.id=l.device" +
-      "  where d.org='" + CONFIG.ORG + "' and d.type in ('Water Meter','Flow Meter')" +
-      "    and l.key=" + K.DAILY + " and l.ts>=" + since +
-      "  group by day, hr, l.device) q group by day, hr order by day, hr");
-    var byDay = {};
-    rows.forEach(function(r){
-      var d = String(r.day).slice(0,10);
-      if(!byDay[d]) byDay[d] = {};
-      byDay[d][Number(r.hr)] = Number(r.total);
-    });
-    var days = Object.keys(byDay).sort();
-    var tKey = days[days.length-1], yKey = days[days.length-2];
-    function series(k){
-      if(!k) return [];
-      var out = [];
-      for(var h=0; h<=23; h++) out.push(byDay[k][h] == null ? null : byDay[k][h]);
+    const regs = await U.fetchRange(sql, {org:CONFIG.ORG}, U.dayStart(yest), now);
+    /* water used since midnight, as it stood at the end of each hour, all meters together */
+    function series(dayKey){
+      const s0 = U.dayStart(dayKey), out = [];
+      for(let h = 0; h <= 23; h++){
+        const t = s0 + (h+1)*3600000;
+        if(s0 + h*3600000 > now){ out.push(null); continue; }
+        let tot = 0, any = false;
+        Object.keys(regs).forEach(id=>{
+          const reg = regs[id], last = U.latest(reg);
+          if(!last) return;
+          const u = t <= last.ts ? U.used(reg, s0, t) : U.usedSoFar(reg, s0);
+          if(u){ tot += u.m3; any = true; }
+        });
+        out.push(any ? Math.round(tot*100)/100 : null);
+      }
       return out;
     }
-    hourly.today = series(tKey);
-    hourly.yest  = series(yKey);
-    var lastOf = function(a){ for(var i=a.length-1;i>=0;i--) if(a[i]!=null) return a[i]; return null; };
+    hourly.today = series(today);
+    hourly.yest  = series(yest);
+    const lastOf = a => { for(let i=a.length-1;i>=0;i--) if(a[i]!=null) return a[i]; return null; };
     hourly.todayTotal = lastOf(hourly.today);
     hourly.yestTotal  = lastOf(hourly.yest);
   }catch(e){

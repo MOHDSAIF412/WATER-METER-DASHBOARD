@@ -411,6 +411,15 @@
   #lockCard button:disabled{opacity:.6;cursor:default}
 
   /* ---- Users & account screen ---- */
+  .dcRow{display:grid;grid-template-columns:1fr auto;gap:6px 14px;padding:10px 12px;border:1px solid var(--line);
+         border-left-width:3px;border-radius:8px;margin-bottom:8px;background:var(--card)}
+  .dcRow.ok{border-left-color:var(--ok)} .dcRow.warn{border-left-color:var(--warn)} .dcRow.bad{border-left-color:var(--bad)}
+  .dcRow b{font-size:13px} .dcRow .sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .dcRow .num{font-size:12px;text-align:right;white-space:nowrap}
+  .dcRow ul{grid-column:1/-1;margin:6px 0 0;padding-left:18px;font-size:11.5px;color:var(--warn)}
+  .dcRow ul li{margin:2px 0}
+  .dcSum{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;margin-bottom:10px}
+  .dcSum b{font-size:16px;display:block}
   #usersModal{position:fixed;inset:0;background:rgba(8,14,24,.62);display:none;align-items:center;justify-content:center;z-index:60}
   #usersModal.open{display:flex}
   #umCard{background:var(--glass);backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);border:1px solid var(--glassbrd);
@@ -553,6 +562,7 @@
   <div class="ngrp">Management</div>
   <a data-nav="devices"><span class="ni">&#128225;</span><span class="ntxt">Devices</span></a>
   <a data-nav="groups"><span class="ni">&#128101;</span><span class="ntxt">Groups</span></a>
+  <a data-nav="datacheck"><span class="ni">&#129514;</span><span class="ntxt">Data Check</span></a>
   <a data-nav="users"><span class="ni">&#128100;</span><span class="ntxt">Users</span></a>
   <a data-nav="settings"><span class="ni">&#9881;</span><span class="ntxt">Settings</span></a>
   <div id="sysbox">
@@ -2396,6 +2406,151 @@ umBody.addEventListener('change',async e=>{
   catch(err){ umSay('umListMsg',WMAuth.friendly(err)); loadUserList(); }
 });
 
+/* ================= DATA CHECK =================
+   Re-reads every meter's register straight from the platform and re-runs the
+   arithmetic the dashboard relies on, so the figures can be audited on demand
+   rather than taken on trust. Everything here is recomputed from the readings;
+   nothing is read back from what the dashboard already displayed.          */
+const DC = { days: 30 };
+
+function dcAnalyse(name, reg, now){
+  const U = WMUsage, out = { name: name, flags: [], readings: reg.length };
+  if (!reg.length){ out.verdict = 'bad'; out.flags.push('no readings at all in the last ' + DC.days + ' days'); return out; }
+
+  const last = U.latest(reg);
+  out.lastAgeH = (now - last.ts) / 3600000;
+  out.shown = U.register(reg);
+
+  /* how often it reports, and the worst silence */
+  const gaps = [];
+  for (let i = 1; i < reg.length; i++) gaps.push((reg[i].ts - reg[i - 1].ts) / 3600000);
+  gaps.sort((a, b) => a - b);
+  out.everyMin = gaps.length ? Math.round(gaps[gaps.length >> 1] * 60) : null;
+  out.longestGapH = gaps.length ? gaps[gaps.length - 1] : 0;
+
+  /* faults the cleaning had to correct */
+  out.faults = (reg.corrections || []).length;
+
+  /* day by day over the window */
+  const from = U.addDays(U.localDay(reg[0].ts), 1), to = U.addDays(U.localDay(now), -1);
+  const all = U.daily(reg, from, to);
+  out.exact = all.filter(d => d.v != null && !d.estimated).length;
+  out.est = all.filter(d => d.v != null && d.estimated).length;
+  out.unknown = all.filter(d => d.v == null).length;
+  out.total = all.reduce((a, d) => a + (d.v || 0), 0);
+  out.negative = all.filter(d => d.v != null && d.v < 0).length;
+
+  /* the arithmetic must close: each unbroken run of days must add up exactly
+     to the difference the register itself moved over that run */
+  let worst = 0, run = null;
+  const closeRun = () => {
+    if (run && run.n > 1){
+      const span = U.used(reg, U.dayStart(run.from), U.dayStart(U.addDays(run.to, 1)));
+      if (span) worst = Math.max(worst, Math.abs(run.sum - span.m3));
+    }
+    run = null;
+  };
+  all.forEach(d => {
+    if (d.v == null){ closeRun(); return; }
+    if (run && run.to === U.addDays(d.d, -1)){ run.to = d.d; run.sum += d.v; run.n++; }
+    else { closeRun(); run = { from: d.d, to: d.d, sum: d.v, n: 1 }; }
+  });
+  closeRun();
+  out.closes = worst;
+
+  /* never goes backwards once cleaned */
+  let back = 0;
+  for (let i = 1; i < reg.length; i++) if (reg[i].v < reg[i - 1].v - 1e-9) back++;
+  out.back = back;
+
+  if (out.lastAgeH > 24) out.flags.push('no reading for ' + Math.round(out.lastAgeH) + ' h — the meter has stopped reporting');
+  else if (out.lastAgeH > 8 && out.everyMin && out.lastAgeH * 60 > out.everyMin * 3)
+    out.flags.push('last reading ' + Math.round(out.lastAgeH) + ' h ago, later than its usual ' + out.everyMin + ' min');
+  if (out.unknown) out.flags.push(out.unknown + ' day(s) cannot be worked out — the readings stop for too long to split them');
+  if (out.faults) out.flags.push(out.faults + ' register fault(s) corrected (the meter jumped or reset; the water was estimated from the flow either side)');
+  if (out.longestGapH > WMUsage.MAX_GAP_H) out.flags.push('longest silence ' + out.longestGapH.toFixed(1) + ' h');
+  if (out.negative) out.flags.push(out.negative + ' day(s) came out negative — REPORT THIS');
+  if (out.back) out.flags.push(out.back + ' backward step(s) left after cleaning — REPORT THIS');
+  if (out.closes > 0.01) out.flags.push('days do not add up to the register: ' + out.closes.toFixed(3) + ' m³ adrift — REPORT THIS');
+
+  out.verdict = (out.negative || out.back || out.closes > 0.01) ? 'bad'
+              : (out.flags.length ? 'warn' : 'ok');
+  return out;
+}
+
+async function openDataCheck(){
+  umModal.classList.add('open');
+  document.getElementById('umTitle').textContent = 'Data check';
+  umBody.innerHTML = '<section><p>Reading every meter&rsquo;s register for the last ' + DC.days +
+    ' days and re-doing the arithmetic&hellip; this pulls a lot of readings, so give it a moment.</p></section>';
+  if(!haveAuth()){ umBody.innerHTML = '<section><p>Sign in to the platform first (🔑 Key), then open this again.</p></section>'; return; }
+
+  const U = WMUsage, now = Date.now(), from = U.dayStart(U.addDays(U.localDay(now), -DC.days));
+  let regs;
+  try{ regs = await U.fetchRange(sql, {org:CONFIG.ORG}, from, now); }
+  catch(e){ umBody.innerHTML = '<section><p>Could not read the meters: ' + umEsc(e.message) + '</p></section>'; return; }
+
+  const rows = meters.map(m => dcAnalyse(m.name, regs[m.id] || [], now))
+                     .sort((a, b) => (a.verdict === b.verdict ? a.name.localeCompare(b.name)
+                                                             : (a.verdict === 'bad' ? -1 : b.verdict === 'bad' ? 1 : a.verdict === 'warn' ? -1 : 1)));
+  const n = v => rows.filter(r => r.verdict === v).length;
+  const readings = rows.reduce((a, r) => a + r.readings, 0);
+
+  let h = '<section><div class="dcSum">' +
+    '<div><b>' + rows.length + '</b>meters checked</div>' +
+    '<div><b style="color:var(--ok)">' + n('ok') + '</b>nothing to report</div>' +
+    '<div><b style="color:var(--warn)">' + n('warn') + '</b>worth a look</div>' +
+    '<div><b style="color:var(--bad)">' + n('bad') + '</b>problems</div>' +
+    '<div><b>' + readings.toLocaleString() + '</b>readings re-checked</div></div>' +
+    '<div class="umNote">Every figure below is worked out again from the meter&rsquo;s own lifetime register, ' +
+    'straight from the platform. &ldquo;Exact&rdquo; days have a reading within an hour of both midnights; ' +
+    '&ldquo;estimated&rdquo; days are split between readings that are further apart. Anything marked REPORT THIS ' +
+    'means the arithmetic itself disagreed — that should never happen.</div>' +
+    '<div class="umRow" style="margin:10px 0"><button class="umBtn" id="dcPrint">Print / save as PDF</button></div></section><section>';
+
+  rows.forEach(r => {
+    h += '<div class="dcRow ' + r.verdict + '"><div><b>' + umEsc(r.name) + '</b><div class="sub">' +
+      (r.readings ? r.readings.toLocaleString() + ' readings · every ' +
+        (r.everyMin >= 60 ? (r.everyMin / 60).toFixed(r.everyMin % 60 ? 1 : 0) + ' h' : r.everyMin + ' min') +
+        ' · last ' + (r.lastAgeH < 1 ? Math.round(r.lastAgeH * 60) + ' min' : Math.round(r.lastAgeH) + ' h') + ' ago'
+        : 'no readings') + '</div></div>' +
+      '<div class="num">' + (r.readings ? r.total.toFixed(1) + ' m³ in ' + DC.days + ' days<div class="sub">' +
+        r.exact + ' exact · ' + r.est + ' estimated' + (r.unknown ? ' · ' + r.unknown + ' unknown' : '') + '</div>' : '') + '</div>' +
+      (r.flags.length ? '<ul><li>' + r.flags.map(umEsc).join('</li><li>') + '</li></ul>' : '') +
+      '</div>';
+  });
+  h += '</section>';
+  umBody.innerHTML = h;
+  document.getElementById('dcPrint').onclick = () => dcPrint(rows);
+}
+
+function dcPrint(rows){
+  const w = window.open('', '_blank');
+  if (!w){ alert('Please allow pop-ups to print.'); return; }
+  const cell = (v, right) => '<td' + (right ? ' style="text-align:right"' : '') + '>' + v + '</td>';
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Data check</title><style>' +
+    'body{font:12px/1.5 Segoe UI,Arial;color:#182430;margin:24px}h1{font-size:17px;margin:0 0 2px}' +
+    'p.s{color:#68788c;margin:0 0 16px}table{border-collapse:collapse;width:100%}' +
+    'th,td{border-bottom:1px solid #dde3ea;padding:6px 8px;text-align:left;vertical-align:top}' +
+    'th{background:#f3f6f9;font-size:11px;text-transform:uppercase;letter-spacing:.4px}' +
+    'li{margin:2px 0}ul{margin:4px 0 0;padding-left:16px;color:#8a5a00}' +
+    '.ok{color:#1a7f37}.warn{color:#9a6700}.bad{color:#b42318}</style></head><body>' +
+    '<h1>Water data check</h1><p class="s">Every meter&rsquo;s register re-read from the 3PhTech platform and the ' +
+    'arithmetic re-done · last ' + DC.days + ' days · ' + new Date().toLocaleString() + '</p><table>' +
+    '<tr><th>Meter</th><th>Readings</th><th>Reports</th><th>Last</th><th>Used</th><th>Days</th><th>Findings</th></tr>' +
+    rows.map(r => '<tr>' + cell('<b>' + r.name + '</b>') +
+      cell(r.readings ? r.readings.toLocaleString() : '—', true) +
+      cell(r.everyMin ? (r.everyMin >= 60 ? (r.everyMin / 60).toFixed(r.everyMin % 60 ? 1 : 0) + ' h' : r.everyMin + ' min') : '—') +
+      cell(r.readings ? (r.lastAgeH < 1 ? Math.round(r.lastAgeH * 60) + ' min' : Math.round(r.lastAgeH) + ' h') + ' ago' : '—') +
+      cell(r.readings ? r.total.toFixed(1) + ' m³' : '—', true) +
+      cell(r.readings ? r.exact + ' exact, ' + r.est + ' est.' + (r.unknown ? ', ' + r.unknown + ' unknown' : '') : '—') +
+      cell(r.flags.length ? '<ul><li>' + r.flags.join('</li><li>') + '</li></ul>'
+                          : '<span class="ok">nothing to report</span>') + '</tr>').join('') +
+    '</table></body></html>');
+  w.document.close();
+  setTimeout(() => { try{ w.focus(); w.print(); }catch(e){} }, 500);
+}
+
 /* ================= ANIMATE ================= */
 const clock=new THREE.Clock();
 function resize(){const w=sceneEl.clientWidth,h=sceneEl.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);}
@@ -2462,6 +2617,7 @@ animate();
     compare:   function(){ window.location.href='aareport.html'; },
     devices:   function(){ panel('pConn'); },
     groups:    function(){ panel('pStatus'); },
+    datacheck: function(){ drawer(false); if(typeof closePanel==='function') closePanel(); openDataCheck(); },
     users:     function(){ drawer(false); if(typeof closePanel==='function') closePanel(); openUsers(); },
     settings:  function(){ drawer(false); document.getElementById('keyBtn').click(); }
   };

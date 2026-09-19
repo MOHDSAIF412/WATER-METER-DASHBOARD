@@ -277,8 +277,8 @@ table.stats td:first-child{text-align:left;font-weight:600}
 </div></div>
 </div>
 
-<script src="auth.js"></script>
-<script src="usage.js"></script>
+<script src="auth.js?v=20260919a"></script>
+<script src="usage.js?v=20260919a"></script>
 <script>
 /* ============================================================
    Per-meter Monitoring page
@@ -658,7 +658,14 @@ async function loadMeter(){
 }
 (async function boot(){
   if(CLOUD){
-    let s=null; try{ s=await WMAuth.session(); }catch(e){}
+    /* same rule as the dashboard: a device that signed in goes straight in, and
+       only a definite "signed out" or "access withdrawn" turns it away */
+    let s = typeof WMAuth.cached==='function' ? WMAuth.cached() : null;
+    if(s && s.allowed){
+      WMAuth.session().then(v=>{ if(!v || !v.allowed){ if(!v) WMAuth.forget(); location.reload(); } }).catch(()=>{});
+    }else{
+      s=null; try{ s=await WMAuth.session(); }catch(e){}
+    }
     if(!s || !s.allowed){ document.getElementById('gate').classList.add('on'); return; }
     const p=await WMAuth.loadPlatform();
     if(p && p.email && p.pass){ creds={email:p.email, pass:p.pass}; authBlocked=null; }

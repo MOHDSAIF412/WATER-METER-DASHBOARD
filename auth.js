@@ -58,12 +58,37 @@
     });
   }
 
+  /* Nothing to do with the login may wait for ever. A check that has not
+     answered in time is treated as a failure, and the page decides what to do. */
+  function inTime(p, ms){
+    return new Promise(function(res, rej){
+      var t = setTimeout(function(){
+        var e = new Error('The login service did not answer in time. Check the connection and try again.');
+        e.code = 'timeout'; rej(e);
+      }, ms);
+      p.then(function(v){ clearTimeout(t); res(v); }, function(e){ clearTimeout(t); rej(e); });
+    });
+  }
+
+  /* The library normally coordinates every open tab through the browser's
+     lock manager. If one tab holds that lock and stalls - a background tab the
+     browser has frozen to save memory is enough - every new page waits behind
+     it, for ever. This lock only queues work inside this page. Two tabs may
+     then renew the session at the same moment, which the login service
+     tolerates by design.                                                    */
+  var queue = Promise.resolve();
+  function pageLock(name, acquireTimeout, fn){
+    var run = queue.then(fn, fn);
+    queue = run.catch(function(){});
+    return run;
+  }
+
   /* The SDK is only downloaded when it is first needed. */
   function boot(){
     if (ready) return ready;
-    ready = loadScript(SDK).then(function(){
+    ready = inTime(loadScript(SDK), 15000).then(function(){
       sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, lock: pageLock }
       });
     });
     ready.catch(function(){ ready = null; });      // allow a retry after a network failure
@@ -91,6 +116,7 @@
     if (/already registered|already exists/i.test(m)) return MSG.email_exists;
     if (/Anonymous sign-ins|Signups not allowed/i.test(m)) return MSG.signup_disabled;
     if (/Failed to fetch|NetworkError/i.test(m))     return 'Cannot reach the login service. Check the connection.';
+    if (e.code === 'timeout') return m;
     return m;
   }
   function fail(e){ var err = new Error(friendly(e)); err.code = e && e.code; throw err; }
@@ -147,26 +173,26 @@
   /* Whoever is already signed in on this device, or null. Also finishes the
      first-run claim if the administrator confirmed by email and came back. */
   function session(){
-    return boot().then(function(){ return sb.auth.getSession(); })
+    return inTime(boot().then(function(){ return sb.auth.getSession(); })
       .then(function(r){
         var u = r.data && r.data.session && r.data.session.user;
         if (!u) return null;
         return describe(u).then(function(me){
           return me.profile ? me : claimIfFirst(u).then(function(c){ return c || me; });
         });
-      });
+      }), 12000);
   }
 
   /* `login` is a user name or an email address - both reach the same account */
   function signIn(login, pass){
-    return boot()
+    return inTime(boot()
       .then(function(){ return sb.auth.signInWithPassword({ email: toEmail(login), password: pass }); })
       .then(function(r){
         if (r.error) fail(r.error);
         return describe(r.data.user).then(function(me){
           return me.profile ? me : claimIfFirst(r.data.user).then(function(c){ return c || me; });
         });
-      });
+      }), 20000);
   }
 
   function signOut(){ forget(); return boot().then(function(){ return sb.auth.signOut(); }); }

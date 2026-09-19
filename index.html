@@ -1092,7 +1092,7 @@ async function fetchSeriesFor(id, from, to, params){
   const keys=[...new Set(params.filter(p=>p.key).map(p=>p.key))];
   if(!keys.length) return [];
   const DT="to_timestamp(ts/1000) at time zone 'Asia/Dubai'";
-  const base=`from ts_data where device='${id}' and key in (${keys.join(',')})
+  const base=`from ts_data where device='${String(id).replace(/'/g, "''")}' and key in (${keys.join(',')})
               and ts>=${from} and ts<=${to} group by d, key order by d asc`;
   let rows, lastOK=true;
   try{

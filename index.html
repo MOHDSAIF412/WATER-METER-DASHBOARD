@@ -8,9 +8,9 @@
 <!-- ?v= is the release: change it on every release, in this file and in aareport.html.
      GitHub Pages lets browsers keep each file for 10 minutes, so without it a new
      page can run against an old script - which is what froze the sign-in screen. -->
-<script src="auth.js?v=20260919a"></script>
-<script src="usage.js?v=20260919a"></script>
-<script src="insights.js?v=20260919a"></script>
+<script src="auth.js?v=20260919b"></script>
+<script src="usage.js?v=20260919b"></script>
+<script src="insights.js?v=20260919b"></script>
 <style>
   :root{
     --bg:#eef1f5; --bg2:#e7ecf2; --panel:#ffffff; --panel2:#f4f7fa; --line:#e1e6ed;
@@ -2257,16 +2257,23 @@ async function cloudEnter(s){
   session=s;
   if(!s){ cloudMode('signin'); return; }
   if(!s.allowed){ cloudMode('denied'); return; }
-  // the 3PhTech login is kept with the accounts, so a new device goes live with no setup
-  const p=await WMAuth.loadPlatform();
-  if(p && p.email && p.pass){ creds={email:p.email, pass:p.pass}; authBlocked=null; }
-  WMAuth.watchProfile(s.uid, prof=>{
-    if(!prof){ return; }                                         // could not check - leave them working
-    if(prof.active!==true){ cloudSignOut(); return; }            // disabled by an admin while open
-    session.profile=prof; session.admin=prof.role==='admin';
-  });
+  try{
+    const p=await WMAuth.loadPlatform();
+    if(p && p.email && p.pass){ creds={email:p.email, pass:p.pass}; authBlocked=null; }
+  }catch(e){}
   document.getElementById('lockBtn').title='Sign out ('+(s.login||s.email)+')';
+  /* Show the dashboard BEFORE starting anything else. The watcher below once
+     threw on the remembered-sign-in path and, because this ran after it, the
+     "Checking your session" screen never went away. Nothing optional may
+     stand between a signed-in person and the dashboard.                    */
   revealApp();
+  try{
+    WMAuth.watchProfile(s.uid, prof=>{
+      if(!prof){ return; }                                         // could not check - leave them working
+      if(prof.active!==true){ cloudSignOut(); return; }            // disabled by an admin while open
+      session.profile=prof; session.admin=prof.role==='admin';
+    });
+  }catch(e){ console.warn('access watcher not started:', e); }
 }
 
 /* Signing out also forgets this browser's platform session, so the next
@@ -2286,7 +2293,7 @@ async function cloudStart(){
   cloudMode('checking');
   /* backstop: whatever goes wrong, this screen never stays up for good */
   const backstop = setTimeout(()=>{
-    if(lkMode==='checking'){ cloudMode('signin');
+    if(lkMode==='checking' && lkScreen.classList.contains('on')){ cloudMode('signin');
       lkSay('Checking your session took too long. Sign in again, or reload the page.', true); }
   }, 15000);
   try{
@@ -2297,7 +2304,9 @@ async function cloudStart(){
     }
     const known = typeof WMAuth.cached==='function' ? WMAuth.cached() : null;
     if(known && known.allowed){
-      cloudEnter(known);                       // straight in, no waiting
+      /* straight in, no waiting - and if even that fails, say so rather than
+         leave the spinner up (the backstop also stays armed for this path) */
+      cloudEnter(known).catch(e=>{ cloudMode('signin'); lkSay(WMAuth.friendly(e),true); });
       WMAuth.session().then(s=>{
         if(!s){ WMAuth.forget(); location.reload(); return; }        // really signed out
         if(!s.allowed){ session=s; cloudMode('denied'); return; }    // access withdrawn
@@ -2307,9 +2316,11 @@ async function cloudStart(){
       return;
     }
     await cloudEnter(await WMAuth.session());
+    clearTimeout(backstop);
   }catch(e){
+    clearTimeout(backstop);
     cloudMode('signin'); lkSay(WMAuth.friendly(e),true);
-  }finally{ clearTimeout(backstop); }
+  }
 }
 
 lkBtn.onclick=()=>CLOUD ? cloudSubmit() : lkSubmit();
@@ -2850,6 +2861,6 @@ function drawTrendChart(){
 })();
 
 </script>
-<script src="insights-ui.js?v=20260919a"></script>
+<script src="insights-ui.js?v=20260919b"></script>
 </body>
 </html>

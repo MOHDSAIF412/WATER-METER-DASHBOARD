@@ -318,8 +318,9 @@
     var stop = false;
     function look(){
       if (stop) return;
-      sb.from('wm_profiles').select('*').eq('id', uid).maybeSingle()
-        .then(function(r){ if (!stop) cb(r.data || null); }, function(){});
+      /* boot() first: this can be asked for before the library has loaded */
+      boot().then(function(){ return sb.from('wm_profiles').select('*').eq('id', uid).maybeSingle(); })
+        .then(function(r){ if (!stop) cb(r && !r.error ? (r.data || null) : null); }, function(){});
     }
     var t = setInterval(look, 120000);
     look();

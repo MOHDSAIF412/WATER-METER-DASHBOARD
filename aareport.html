@@ -429,7 +429,7 @@ async function loadKpis(){
   const pY=(mo===1)?yr-1:yr, pM=(mo===1)?12:mo-1;
   const prevMk=pY+'-'+(pM<10?'0':'')+pM;
 
-  const latest=await sql("select l.key, l.num_value from ts_data_latest l where l.device='"+m.id+
+  const latest=await sql("select l.key, l.num_value from ts_data_latest l where l.device='"+String(m.id).replace(/'/g, "''")+
     "' and l.key in ("+K.TOTAL+","+K.FLOWCONS+","+K.FLOWRATE+")");
   const lv={}; latest.forEach(function(r){ lv[Number(r.key)]=Number(r.num_value); });
 

@@ -1,0 +1,4 @@
+## 2026-09-19 - [CRITICAL] Fix SQL injection in user query
+**Vulnerability:** The frontend application constructs raw SQL queries dynamically, using user-controlled input (`id` parameters) directly within the string. For example, `where device='${id}'`.
+**Learning:** Due to the absence of a backend layer or ORM handling query parameterization, the frontend queries the database (via a wrapper) by building queries using template literals or string concatenation.
+**Prevention:** Always sanitize inputs that are passed directly into SQL queries to prevent SQL injection. For strings, replacing single quotes with two single quotes (`String(id).replace(/'/g, "''")`) neutralizes single-quote-based injection, which is crucial when `id` is directly used inside single quotes (`where device='${id}'`).

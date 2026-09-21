@@ -597,7 +597,8 @@ document.getElementById('rGen').onclick=async()=>{
 };
 async function fetchDailyFor(id,days){
   const since=Date.now()-days*86400000;
-  const rows=await sql(`select ts,num_value from ts_data where device='${id}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
+  const cleanId = String(id).replace(/'/g, "''");
+  const rows=await sql(`select ts,num_value from ts_data where device='${cleanId}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
   const byDay={}; rows.forEach(r=>{ byDay[new Date(Number(r.ts)).toISOString().slice(0,10)]=Number(r.num_value); });
   return Object.entries(byDay).map(([d,v])=>({d,v})).sort((a,b)=>a.d.localeCompare(b.d));
 }
@@ -717,7 +718,8 @@ function openReportWindow(items,days,monthly){
 /* ---------- meter detail + 30-day trend chart ---------- */
 async function fetchDailySeries(id){
   const since = Date.now() - 30*86400000;
-  const rows = await sql(`select ts, num_value from ts_data where device='${id}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
+  const cleanId = String(id).replace(/'/g, "''");
+  const rows = await sql(`select ts, num_value from ts_data where device='${cleanId}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
   const byDay={};
   rows.forEach(r=>{ byDay[new Date(Number(r.ts)).toISOString().slice(0,10)] = Number(r.num_value); });
   return Object.entries(byDay).map(([d,v])=>({d,v})).sort((a,b)=>a.d.localeCompare(b.d));
@@ -775,8 +777,9 @@ async function openDetail(m){
 }
 async function fetchLeakDetail(m){
   const since=Date.now()-CONFIG.LEAK_DAYS*86400000;
+  const cleanId = String(m.id).replace(/'/g, "''");
   const key = m.type==='Flow Meter'?K.FLOWRATE:K.FLOWCONS;
-  const rows=await sql(`select ts,num_value from ts_data where device='${m.id}' and key=${key} and ts>=${since}
+  const rows=await sql(`select ts,num_value from ts_data where device='${cleanId}' and key=${key} and ts>=${since}
     and extract(hour from to_timestamp(ts/1000) at time zone 'Asia/Dubai') between 1 and 5 order by ts asc`);
   return rows.map(r=>({ts:Number(r.ts),v:Number(r.num_value)}));
 }

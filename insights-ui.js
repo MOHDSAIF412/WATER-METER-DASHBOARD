@@ -25,6 +25,7 @@
   }
 
   function esc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function escSql(s){ return String(s).replace(/'/g, "''"); }
   function num(x, d){ return x == null || !isFinite(x) ? '—' : Number(x).toLocaleString('en-US', { maximumFractionDigits: d == null ? 1 : d }); }
   function vol(v){ return v == null ? '—' : num(v, v >= 100 ? 0 : 1) + ' m³'; }
   function lpm(m3h){ return m3h == null ? '—' : num(m3h * 1000 / 60, 1) + ' L/min'; }
@@ -48,12 +49,12 @@
              proved it). This drives nights, base flow and daily use. */
           sql('select l.device, l.key, l.ts, l.num_value as v ' +
               'from ts_data l join devices d on d.id=l.device ' +
-              "where d.org='" + ORG + "' and " + TYPES + ' and l.key=' + K.TOTAL + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +
+              "where d.org='" + escSql(ORG) + "' and " + TYPES + ' and l.key=' + K.TOTAL + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +
               'order by l.device, l.ts'),
           /* the platform's daily counter: only a fallback for a meter with no lifetime register */
           sql('select l.device, date_trunc(\'day\',' + DT + ')::date::text as d, max(l.num_value) as v ' +
               'from ts_data l join devices d on d.id=l.device ' +
-              "where d.org='" + ORG + "' and " + TYPES + ' and l.key=' + K.DAILY + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +
+              "where d.org='" + escSql(ORG) + "' and " + TYPES + ' and l.key=' + K.DAILY + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +
               'group by l.device, d')
         ]);
         state.data = WMInsights.analyse(

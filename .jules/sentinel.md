@@ -1,0 +1,4 @@
+## 2024-05-16 - Prevent SQL injection in frontend queries
+**Vulnerability:** Several frontend files (`index.html`, `sddfdfwindex.html`, `aareport.html`, and `insights-ui.js`) were constructing SQL queries using un-sanitized variables (such as `CONFIG.ORG` and `id`), passing them to a backend `/dynamicapi/read` endpoint.
+**Learning:** In a vanilla HTML/JS frontend application without a build pipeline that executes arbitrary queries via a proxy, SQL queries directly constructed on the frontend are particularly vulnerable to SQL injection if input is not sanitized or properly escaped prior to query interpolation. The `replace(/'/g, "''")` method used in `usage.js` is a necessary measure in this architecture.
+**Prevention:** Make sure to escape all string variables before embedding them into SQL queries when constructing dynamic queries in the frontend. Use a utility function like `escSql` and pass any inputs through it (e.g. `${escSql(id)}`).

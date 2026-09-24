@@ -214,7 +214,7 @@
   var TYPES = "d.type in ('Water Meter','Flow Meter')";
   function scopeSql(opts){
     return opts.devices ? "l.device in (" + opts.devices.map(function(id){ return "'" + String(id).replace(/'/g, "''") + "'"; }).join(',') + ')'
-                        : "d.org='" + opts.org + "' and " + TYPES;
+                        : "d.org='" + String(opts.org).replace(/'/g, "''") + "' and " + TYPES;
   }
   /* every reading between from and to, padded 13 h each side so the ends can be interpolated */
   async function fetchRange(sql, opts, from, to){

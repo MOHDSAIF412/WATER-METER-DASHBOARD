@@ -895,20 +895,20 @@ async function fetchLive(){
   const status = await sql(`
     select distinct on (d.id) d.id, d.name, d.type, s.active, s.ts as sts
     from device_status_history s join devices d on d.id=s.device
-    where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+    where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter')
     order by d.id, s.ts desc`);
   // latest readings
   const reads = await sql(`
     select l.device, l.key, l.num_value, l.ts
     from ts_data_latest l join devices d on d.id=l.device
-    where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+    where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter')
       and l.key in (${K.TOTAL},${K.FLOWCONS},${K.FLOWRATE})`);
   // device connectivity across ALL devices (incl. gateway) for the gauge
   try{
     const conn = await sql(`
       select distinct on (d.id) d.id, s.active
       from device_status_history s join devices d on d.id=s.device
-      where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+      where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter')
       order by d.id, s.ts desc`);
     let c=0,dn=0; conn.forEach(r=>{ r.active?c++:dn++; });
     connStatus={connected:c,disconnected:dn};
@@ -951,7 +951,7 @@ async function fetchAlarms(){
   return sql(`
     select a.id, d.name as device, a.severity, a.title, a.status, a.created_time, a.info
     from alarms a join devices d on d.id=a.device
-    where d.org='${CONFIG.ORG}' and a.status in ('ACTIVE','ACKNOWLEDGED')
+    where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and a.status in ('ACTIVE','ACKNOWLEDGED')
     order by a.created_time desc limit 60`).then(rows=>rows.map(r=>({
       id:r.id, device:(r.device||'').trim(), severity:(r.severity||'MINOR').toUpperCase(),
       title:r.title, status:r.status, info:r.info, ts:Number(r.created_time)
@@ -1096,7 +1096,7 @@ async function fetchSeriesFor(id, from, to, params){
   const keys=[...new Set(params.filter(p=>p.key).map(p=>p.key))];
   if(!keys.length) return [];
   const DT="to_timestamp(ts/1000) at time zone 'Asia/Dubai'";
-  const base=`from ts_data where device='${id}' and key in (${keys.join(',')})
+  const base=`from ts_data where device='${String(id).replace(/'/g, "''")}' and key in (${keys.join(',')})
               and ts>=${from} and ts<=${to} group by d, key order by d asc`;
   let rows, lastOK=true;
   try{

@@ -402,7 +402,7 @@ setTheme(lsGet('wm_theme_mon')||'light');
 async function loadMeters(){
   const rows=await sql("select distinct on (d.id) d.id, d.name, d.type, s.active "+
     "from device_status_history s join devices d on d.id=s.device "+
-    "where d.org='"+CONFIG.ORG+"' and d.type in ('Water Meter','Flow Meter') "+
+    "where d.org='"+String(CONFIG.ORG).replace(/'/g, "''")+"' and d.type in ('Water Meter','Flow Meter') "+
     "order by d.id, s.ts desc");
   meters=rows.map(function(r){ return {id:r.id,name:String(r.name).trim(),type:r.type,active:r.active}; })
              .sort(function(a,b){ return a.name.localeCompare(b.name); });

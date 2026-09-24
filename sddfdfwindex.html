@@ -456,20 +456,20 @@ async function fetchLive(){
   const status = await sql(`
     select distinct on (d.id) d.id, d.name, d.type, s.active, s.ts as sts
     from device_status_history s join devices d on d.id=s.device
-    where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+    where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter')
     order by d.id, s.ts desc`);
   // latest readings
   const reads = await sql(`
     select l.device, l.key, l.num_value, l.ts
     from ts_data_latest l join devices d on d.id=l.device
-    where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+    where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter')
       and l.key in (${K.TOTAL},${K.FLOWCONS},${K.FLOWRATE},${K.DAILY})`);
   // device connectivity across ALL devices (incl. gateway) for the gauge
   try{
     const conn = await sql(`
       select distinct on (d.id) d.id, s.active
       from device_status_history s join devices d on d.id=s.device
-      where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+      where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter')
       order by d.id, s.ts desc`);
     let c=0,dn=0; conn.forEach(r=>{ r.active?c++:dn++; });
     connStatus={connected:c,disconnected:dn};
@@ -480,7 +480,7 @@ async function fetchLive(){
     const nf=await sql(`
       select l.device, round(min(l.num_value)::numeric,3) as mn, count(*) as n
       from ts_data l join devices d on d.id=l.device
-      where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter')
+      where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter')
         and l.key in (${K.FLOWRATE},${K.FLOWCONS})
         and l.ts >= ${Date.now()-CONFIG.LEAK_DAYS*86400000}
         and extract(hour from to_timestamp(l.ts/1000) at time zone 'Asia/Dubai') between 1 and 5
@@ -506,7 +506,7 @@ async function fetchAlarms(){
   return sql(`
     select a.id, d.name as device, a.severity, a.title, a.status, a.created_time, a.info
     from alarms a join devices d on d.id=a.device
-    where d.org='${CONFIG.ORG}' and a.status in ('ACTIVE','ACKNOWLEDGED')
+    where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and a.status in ('ACTIVE','ACKNOWLEDGED')
     order by a.created_time desc limit 60`).then(rows=>rows.map(r=>({
       id:r.id, device:(r.device||'').trim(), severity:(r.severity||'MINOR').toUpperCase(),
       title:r.title, status:r.status, info:r.info, ts:Number(r.created_time)
@@ -541,7 +541,7 @@ async function downloadReport(m){
     const since = Date.now() - CONFIG.REPORT_DAYS*86400000;
     const rows = await sql(`
       select ts, key, num_value from ts_data
-      where device='${m.id}' and key in (${K.DAILY},${K.TOTAL}) and ts >= ${since}
+      where device='${String(m.id).replace(/'/g, "''")}' and key in (${K.DAILY},${K.TOTAL}) and ts >= ${since}
       order by ts asc`);
     const map = {};
     rows.forEach(r=>{ const d=new Date(Number(r.ts)).toISOString().slice(0,10);
@@ -588,7 +588,7 @@ document.getElementById('rGen').onclick=async()=>{
         select to_char(day,'YYYY-MM') as mon, daily from (
           select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
           from ts_data l join devices d on d.id=l.device
-          where d.org='${CONFIG.ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-160*86400000}
+          where d.org='${String(CONFIG.ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-160*86400000}
           group by day, l.device) a) b group by mon order by mon desc limit 5`);
     }catch(e){}
     openReportWindow(items,days,monthly); rModal.classList.remove('open');
@@ -597,7 +597,7 @@ document.getElementById('rGen').onclick=async()=>{
 };
 async function fetchDailyFor(id,days){
   const since=Date.now()-days*86400000;
-  const rows=await sql(`select ts,num_value from ts_data where device='${id}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
+  const rows=await sql(`select ts,num_value from ts_data where device='${String(id).replace(/'/g, "''")}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
   const byDay={}; rows.forEach(r=>{ byDay[new Date(Number(r.ts)).toISOString().slice(0,10)]=Number(r.num_value); });
   return Object.entries(byDay).map(([d,v])=>({d,v})).sort((a,b)=>a.d.localeCompare(b.d));
 }
@@ -717,7 +717,7 @@ function openReportWindow(items,days,monthly){
 /* ---------- meter detail + 30-day trend chart ---------- */
 async function fetchDailySeries(id){
   const since = Date.now() - 30*86400000;
-  const rows = await sql(`select ts, num_value from ts_data where device='${id}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
+  const rows = await sql(`select ts, num_value from ts_data where device='${String(id).replace(/'/g, "''")}' and key=${K.DAILY} and ts>=${since} order by ts asc`);
   const byDay={};
   rows.forEach(r=>{ byDay[new Date(Number(r.ts)).toISOString().slice(0,10)] = Number(r.num_value); });
   return Object.entries(byDay).map(([d,v])=>({d,v})).sort((a,b)=>a.d.localeCompare(b.d));
@@ -776,7 +776,7 @@ async function openDetail(m){
 async function fetchLeakDetail(m){
   const since=Date.now()-CONFIG.LEAK_DAYS*86400000;
   const key = m.type==='Flow Meter'?K.FLOWRATE:K.FLOWCONS;
-  const rows=await sql(`select ts,num_value from ts_data where device='${m.id}' and key=${key} and ts>=${since}
+  const rows=await sql(`select ts,num_value from ts_data where device='${String(m.id).replace(/'/g, "''")}' and key=${key} and ts>=${since}
     and extract(hour from to_timestamp(ts/1000) at time zone 'Asia/Dubai') between 1 and 5 order by ts asc`);
   return rows.map(r=>({ts:Number(r.ts),v:Number(r.num_value)}));
 }
@@ -840,7 +840,7 @@ async function loadAnalytics(){
     const base=await sql(`select device as id, round(avg(daily)::numeric,2) as avg30 from (
       select l.device, date_trunc('day',${DT})::date as day, max(l.num_value) as daily
       from ts_data l join devices d on d.id=l.device
-      where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-30*86400000}
+      where d.org='${String(ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-30*86400000}
       group by l.device, day) x group by device`);
     baselineMap={}; base.forEach(r=>baselineMap[r.id]=Number(r.avg30));
   }catch(e){}
@@ -849,13 +849,13 @@ async function loadAnalytics(){
       select date_trunc('week', day)::date as wk, daily from (
         select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
         from ts_data l join devices d on d.id=l.device
-        where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-28*86400000}
+        where d.org='${String(ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-28*86400000}
         group by day, l.device) a) b group by wk order by wk desc limit 3`);
     const mo=await sql(`select mon, round(sum(daily)::numeric,0) as total from (
       select to_char(day,'YYYY-MM') as mon, daily from (
         select date_trunc('day',${DT})::date as day, l.device, max(l.num_value) as daily
         from ts_data l join devices d on d.id=l.device
-        where d.org='${ORG}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-95*86400000}
+        where d.org='${String(ORG).replace(/'/g, "''")}' and d.type in ('Water Meter','Flow Meter') and l.key=1041 and l.ts>=${Date.now()-95*86400000}
         group by day, l.device) a) b group by mon order by mon desc limit 2`);
     trend.wk = wk[1]?Number(wk[1].total):null; trend.lastWk = wk[2]?Number(wk[2].total):null;
     trend.moMTD = mo[0]?Number(mo[0].total):null; trend.lastMo = mo[1]?Number(mo[1].total):null;

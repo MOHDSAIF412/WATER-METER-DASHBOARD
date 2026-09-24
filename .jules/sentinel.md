@@ -1,0 +1,4 @@
+## 2024-05-18 - SQL Injection in Dynamic API Calls
+**Vulnerability:** Unsanitized user input and configuration values (`CONFIG.ORG`, `opts.org`, `id`, `m.id`) were directly interpolated into SQL query strings (e.g., `where d.org='${CONFIG.ORG}'`) across multiple frontend files (`usage.js`, `insights-ui.js`, `index.html`, `aareport.html`, `sddfdfwindex.html`). This allowed arbitrary SQL execution via the `/dynamicapi/read` endpoint.
+**Learning:** Even internal configuration values or seemingly "safe" variables must be sanitized before being injected into raw SQL strings, especially when a frontend application directly constructs and executes queries against a generic API endpoint.
+**Prevention:** Always use `String(variable).replace(/'/g, "''")` to escape single quotes when interpolating strings into SQL queries, or preferably migrate to an API that accepts parameterized queries.

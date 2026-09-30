@@ -11,6 +11,7 @@
   'use strict';
 
   var REFRESH_MS = 30 * 60000;
+  function escSql(s){ return String(s).replace(/'/g, "''"); }
   var state = { data: null, err: null, loading: null, at: 0, view: 'overview', filter: 'all', meter: null };
 
   var ICON = { leak: '💧', night: '🌙', spike: '⚡', step: '📈', noflow: '⛔', drop: '📉', data: '📡', silent: '📴' };
@@ -48,12 +49,12 @@
              proved it). This drives nights, base flow and daily use. */
           sql('select l.device, l.key, l.ts, l.num_value as v ' +
               'from ts_data l join devices d on d.id=l.device ' +
-              "where d.org='" + ORG + "' and " + TYPES + ' and l.key=' + K.TOTAL + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +
+              "where d.org='" + escSql(ORG) + "' and " + TYPES + ' and l.key=' + K.TOTAL + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +
               'order by l.device, l.ts'),
           /* the platform's daily counter: only a fallback for a meter with no lifetime register */
           sql('select l.device, date_trunc(\'day\',' + DT + ')::date::text as d, max(l.num_value) as v ' +
               'from ts_data l join devices d on d.id=l.device ' +
-              "where d.org='" + ORG + "' and " + TYPES + ' and l.key=' + K.DAILY + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +
+              "where d.org='" + escSql(ORG) + "' and " + TYPES + ' and l.key=' + K.DAILY + ' and l.ts>=' + (now - 90 * 86400000) + ' ' +
               'group by l.device, d')
         ]);
         state.data = WMInsights.analyse(

@@ -211,10 +211,11 @@
      Every register reading in one continuous range - never thinned out, and
      never separate windows: a jump that started before a window would shift
      one window against another. Differences inside one range are always safe. */
+  function escSql(s){ return String(s).replace(/'/g, "''"); }
   var TYPES = "d.type in ('Water Meter','Flow Meter')";
   function scopeSql(opts){
     return opts.devices ? "l.device in (" + opts.devices.map(function(id){ return "'" + String(id).replace(/'/g, "''") + "'"; }).join(',') + ')'
-                        : "d.org='" + opts.org + "' and " + TYPES;
+                        : "d.org='" + escSql(opts.org) + "' and " + TYPES;
   }
   /* every reading between from and to, padded 13 h each side so the ends can be interpolated */
   async function fetchRange(sql, opts, from, to){

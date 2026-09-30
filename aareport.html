@@ -339,6 +339,7 @@ function ensureToken(){
 }
 function postRead(q){ return fetch(CONFIG.API+'/dynamicapi/read',{method:'POST',
   headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({query:q})}); }
+function escSql(s){ return String(s).replace(/'/g, "''"); }
 async function sql(q){
   await ensureToken();
   let r=await postRead(q);
@@ -402,7 +403,7 @@ setTheme(lsGet('wm_theme_mon')||'light');
 async function loadMeters(){
   const rows=await sql("select distinct on (d.id) d.id, d.name, d.type, s.active "+
     "from device_status_history s join devices d on d.id=s.device "+
-    "where d.org='"+CONFIG.ORG+"' and d.type in ('Water Meter','Flow Meter') "+
+    "where d.org='"+escSql(CONFIG.ORG)+"' and d.type in ('Water Meter','Flow Meter') "+
     "order by d.id, s.ts desc");
   meters=rows.map(function(r){ return {id:r.id,name:String(r.name).trim(),type:r.type,active:r.active}; })
              .sort(function(a,b){ return a.name.localeCompare(b.name); });
@@ -429,7 +430,7 @@ async function loadKpis(){
   const pY=(mo===1)?yr-1:yr, pM=(mo===1)?12:mo-1;
   const prevMk=pY+'-'+(pM<10?'0':'')+pM;
 
-  const latest=await sql("select l.key, l.num_value from ts_data_latest l where l.device='"+m.id+
+  const latest=await sql("select l.key, l.num_value from ts_data_latest l where l.device='"+escSql(m.id)+
     "' and l.key in ("+K.TOTAL+","+K.FLOWCONS+","+K.FLOWRATE+")");
   const lv={}; latest.forEach(function(r){ lv[Number(r.key)]=Number(r.num_value); });
 

@@ -367,7 +367,7 @@ async function dailyUse(id, from, to){
     let v=x.v, est=x.estimated;
     if(x.d===today){ const so=reg.length?U.usedSoFar(reg,U.dayStart(today)):null; v=so&&!so.noReadingYet?so.m3:null; est=!!(so&&so.estimated); }
     else if(x.d>today) v=null;
-    if(v!=null) days[x.d]={v:v, est:est};
+    if(v!=null) days[x.d]={v:v, est:est, covered:x.covered};
   });
   return {days:days, reg:reg};
 }
@@ -434,16 +434,35 @@ async function loadKpis(){
   const lv={}; latest.forEach(function(r){ lv[Number(r.key)]=Number(r.num_value); });
 
   const U=WMUsage, month=todayKey.slice(0,7)+'-01', prevMonth=U.addMonths(month,-1);
-  const use=await dailyUse(m.id, U.dayStart(prevMonth), now), reg=use.reg;
-  const done=Object.keys(use.days).filter(function(d){ return d<todayKey; });
+  /* three months back, so the monthly average has whole months to average */
+  const use=await dailyUse(m.id, U.dayStart(U.addMonths(month,-3)), now), reg=use.reg;
   const tSo=reg.length?U.usedSoFar(reg,U.dayStart(todayKey)):null;
   const mSo=reg.length?U.usedSoFar(reg,U.dayStart(month)):null;
   const pU=reg.length?U.used(reg,U.dayStart(prevMonth),U.dayStart(month)):null;
   const todayV=tSo&&!tSo.noReadingYet?tSo.m3:null, monthV=mSo?mSo.m3:null, prevV=pU?pU.m3:null;
   const est=function(o){ return o&&o.estimated?'≈':''; };
-  const dailyAvg=done.length?done.reduce(function(a,d){ return a+use.days[d].v; },0)/done.length:null;
-  const months=[prevV,monthV].filter(function(v){ return v!=null; });
-  const monthlyAvg=months.length?months.reduce(function(a,b){ return a+b; },0)/months.length:null;
+
+  /* A day the meter spent part of the time silent used real water, but it is
+     not a normal day - averaging it in drags the average down and makes a
+     meter look like it is using less than it is. Same rule as Smart Insights. */
+  const solid=Object.keys(use.days).filter(function(d){
+    return d<todayKey && (use.days[d].covered==null || use.days[d].covered>=0.9); });
+  const last30=solid.filter(function(d){ return d>=U.addDays(todayKey,-30); });
+  const forAvg=last30.length>=7?last30:solid;
+  const dailyAvg=forAvg.length?forAvg.reduce(function(a,d){ return a+use.days[d].v; },0)/forAvg.length:null;
+  const dailyAvgDays=forAvg.length;
+  const skipped=Object.keys(use.days).filter(function(d){ return d<todayKey; }).length-solid.length;
+
+  /* Only WHOLE months. Averaging last month with the two days so far this month
+     was arithmetic nobody could use.                                          */
+  const wholeMonths=[];
+  for(let k=1;k<=3;k++){
+    const a=U.addMonths(month,-k), b=U.addMonths(month,-k+1);
+    if(!reg.length) break;
+    const u=U.used(reg,U.dayStart(a),U.dayStart(b));
+    if(u) wholeMonths.push({m:a,v:u.m3});
+  }
+  const monthlyAvg=wholeMonths.length?wholeMonths.reduce(function(a,x){ return a+x.v; },0)/wholeMonths.length:null;
   const regNow=U.register(reg);
   const shown=function(v,dec){ return v==null?'—':nf(v,dec)+' m³'; };
   const flow=(m.type==='Flow Meter')?(lv[K.FLOWRATE]||0):(lv[K.FLOWCONS]||0);
@@ -453,14 +472,20 @@ async function loadKpis(){
     ['g-purple','Meter Name', m.name, true],
     ['g-indigo','Net Meter Reading', nf(regNow!=null?regNow:(lv[K.TOTAL]||0),1)+' m³'],
     ['g-amber' ,'Total Cons. (Today)', todayV==null?'—':est(tSo)+shown(todayV,1)],
-    ['g-grass' ,'Daily Avg. Cons.', shown(dailyAvg,3)],
+    ['g-grass' ,'Daily Avg. Cons.', shown(dailyAvg,1),false,
+       dailyAvg==null?'No complete day yet.':('Average of '+dailyAvgDays+' complete day'+(dailyAvgDays===1?'':'s')+
+       (skipped?', leaving out '+skipped+' day'+(skipped===1?'':'s')+' the meter was partly silent':'')+'.')],
     ['g-orange','Total Cons. (This Month)', est(mSo)+shown(monthV,0)],
     ['g-amber' ,'Prev Month Cons.', est(pU)+shown(prevV,0)],
-    ['g-grass' ,'Monthly Avg. Cons.', shown(monthlyAvg,1)],
+    ['g-grass' ,'Monthly Avg. Cons.', shown(monthlyAvg,0),false,
+       monthlyAvg==null?'Needs one whole month of readings.'
+         :('Average of '+wholeMonths.length+' whole month'+(wholeMonths.length===1?'':'s')+': '+
+           wholeMonths.map(function(x){ return x.m.slice(0,7)+' '+nf(x.v,0)+' m³'; }).join(' · ')+
+           '. This month so far is not counted.')],
     ['g-teal'  ,'Current Flow', nf(flow,2)+' m³/h']
   ];
   document.getElementById('kpis').innerHTML=cards.map(function(c){
-    return '<div class="kpi '+c[0]+'"><div class="kl">'+esc(c[1])+
+    return '<div class="kpi '+c[0]+'"'+(c[4]?' title="'+esc(c[4])+'"':'')+'><div class="kl">'+esc(c[1])+
            '</div><div class="kv'+(c[3]?' sm':'')+'">'+esc(c[2])+'</div></div>';
   }).join('');
 }

@@ -1,0 +1,34 @@
+# Keeps the dashboard's login working.
+#
+# The login service (Supabase, free plan) puts a project to sleep after about a
+# week with no requests. It happened: the dashboard was not opened for two weeks
+# and nobody could sign in until the project was woken by hand. Anyone whose
+# device had signed in before still got in, so it went unnoticed.
+#
+# This asks the login service one harmless question every day, which is enough to
+# count as use. It reads nothing private: the key below is the publishable one,
+# already public in auth.js, and the table it reads only says whether the first
+# administrator has been set up.
+name: Keep the login awake
+
+on:
+  schedule:
+    - cron: '17 6 * * *'        # 10:17 Dubai, daily
+  workflow_dispatch:            # ...or run it from the Actions tab at any time
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask the login service if it is there
+        run: |
+          URL=https://ugcclyogdubrjlhwkyew.supabase.co
+          KEY=sb_publishable_bsIWMjeMrBej7JislwVRHQ_aAQ8bmu7
+          code=$(curl -s -o /tmp/out -w '%{http_code}' --max-time 30 \
+                 -H "apikey: $KEY" "$URL/rest/v1/wm_meta?select=id&limit=1")
+          echo "HTTP $code"; cat /tmp/out; echo
+          if [ "$code" != "200" ]; then
+            echo "::error::The login service answered $code - it may be asleep or unhealthy."
+            exit 1
+          fi
+          echo "Login service is awake."

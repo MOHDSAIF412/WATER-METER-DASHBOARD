@@ -70,17 +70,37 @@
     });
   }
 
-  /* The library normally coordinates every open tab through the browser's
-     lock manager. If one tab holds that lock and stalls - a background tab the
-     browser has frozen to save memory is enough - every new page waits behind
-     it, for ever. This lock only queues work inside this page. Two tabs may
-     then renew the session at the same moment, which the login service
-     tolerates by design.                                                    */
+  /* Every open page has to take turns renewing the session. If two renew at
+     the same moment, the second is told its token was "already used" and the
+     login service ends the session for BOTH - and the person is asked for a
+     password although nothing was wrong. Only the browser's own lock manager
+     can order work across tabs, so use it; but never wait for ever on it,
+     because a background tab the browser froze while holding the lock would
+     stall this page for good. If the wait runs out, fall back to taking turns
+     inside this page alone, which is still better than not waiting at all. */
   var queue = Promise.resolve();
-  function pageLock(name, acquireTimeout, fn){
+  function inPageLock(fn){
     var run = queue.then(fn, fn);
     queue = run.catch(function(){});
     return run;
+  }
+  function pageLock(name, acquireTimeout, fn){
+    if (!(window.navigator && navigator.locks && navigator.locks.request)) return inPageLock(fn);
+    /* The library asks to wait for ever (-1) or not at all (0). Neither is
+       safe here: for ever can hang on a frozen tab, and not at all gives up
+       the ordering that stops two tabs renewing at once. Wait, briefly. */
+    var ms = acquireTimeout > 0 ? Math.min(acquireTimeout, 3000) : 3000, started = false;
+    var ac, timer;
+    try{ ac = new AbortController(); }catch(e){ return inPageLock(fn); }
+    timer = setTimeout(function(){ try{ ac.abort(); }catch(e){} }, ms);
+    return navigator.locks.request(name, { signal: ac.signal }, function(l){ started = true; return fn(l); })
+      .then(function(v){ clearTimeout(timer); return v; },
+            function(e){
+              clearTimeout(timer);
+              /* only the WAIT failed - the work never ran, so run it here */
+              if (!started && e && (e.name === 'AbortError' || e.name === 'NotSupportedError')) return inPageLock(fn);
+              throw e;
+            });
   }
 
   /* The SDK is only downloaded when it is first needed. */
@@ -142,6 +162,37 @@
   }
   function forget(){ try{ localStorage.removeItem(ME); }catch(e){} }
 
+  /* Is a session stored on this device at all? The library keeps it under a key
+     of its own ("sb-<project>-auth-token") and deletes that key the moment the
+     login service definitely rejects it. So the key still being there means
+     this device is still signed in as far as anyone knows - which is how the
+     page tells "could not check" apart from "signed out".                   */
+  function storedSession(){
+    try{
+      for (var i = 0; i < localStorage.length; i++){
+        var k = localStorage.key(i);
+        if (k && k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0 && localStorage.getItem(k)) return true;
+      }
+    }catch(e){}
+    return false;
+  }
+
+  /* A check that FAILED is not an answer. No network, a connection still
+     coming up, the service not answering, too many requests - none of these
+     mean signed out, and none of them may end up throwing the remembered
+     sign-in away and demanding a password.                                  */
+  function unreachable(e){
+    if (!e) return false;
+    if (e.code === 'timeout' || e.name === 'AuthRetryableFetchError') return true;
+    if (e.status === 0 || e.status === 408 || e.status === 429 || e.status >= 500) return true;
+    return /Failed to fetch|NetworkError|network error|load failed|timed out|did not answer/i.test(String(e.message || e));
+  }
+  function cannotTell(e){
+    var err = new Error('Cannot reach the login service right now.');
+    err.code = 'offline'; err.cause = e;
+    return err;
+  }
+
   /* the page to come back to after a password reset */
   function here(){ return location.origin + location.pathname.replace(/[^/]*$/, '') + 'index.html'; }
 
@@ -176,7 +227,14 @@
     return inTime(boot().then(function(){ return sb.auth.getSession(); })
       .then(function(r){
         var u = r.data && r.data.session && r.data.session.user;
-        if (!u) return null;
+        if (!u){
+          /* Returning null here is read as "signed out", and the page acts on
+             it by forgetting this device. Only say it when it is true: if the
+             session is still stored and the service simply could not be
+             reached, that is a failure to check, and it is raised as one.  */
+          if (r.error && unreachable(r.error) && storedSession()) throw cannotTell(r.error);
+          return null;
+        }
         return describe(u).then(function(me){
           return me.profile ? me : claimIfFirst(u).then(function(c){ return c || me; });
         });
@@ -338,7 +396,8 @@
     enabled: ON,
     emulator: false,
     session: session, signIn: signIn, loginOf: loginOf, hasMailbox: hasMailbox,
-    cached: cached, forget: forget, signOut: signOut, sendReset: sendReset, setPassword: setPassword,
+    cached: cached, forget: forget, stored: storedSession, unreachable: unreachable,
+    signOut: signOut, sendReset: sendReset, setPassword: setPassword,
     ownerExists: ownerExists, createOwner: createOwner,
     createUser: createUser, listUsers: listUsers, updateUser: updateUser,
     resetUserPassword: resetUserPassword, removeUser: removeUser, watchProfile: watchProfile,

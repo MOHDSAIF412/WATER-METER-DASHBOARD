@@ -8,9 +8,9 @@
 <!-- ?v= is the release: change it on every release, in this file and in aareport.html.
      GitHub Pages lets browsers keep each file for 10 minutes, so without it a new
      page can run against an old script - which is what froze the sign-in screen. -->
-<script src="auth.js?v=20260919b"></script>
-<script src="usage.js?v=20260919b"></script>
-<script src="insights.js?v=20260919b"></script>
+<script src="auth.js?v=20261005a"></script>
+<script src="usage.js?v=20261005a"></script>
+<script src="insights.js?v=20261005a"></script>
 <style>
   :root{
     --bg:#eef1f5; --bg2:#e7ecf2; --panel:#ffffff; --panel2:#f4f7fa; --line:#e1e6ed;
@@ -2308,11 +2308,15 @@ async function cloudStart(){
          leave the spinner up (the backstop also stays armed for this path) */
       cloudEnter(known).catch(e=>{ cloudMode('signin'); lkSay(WMAuth.friendly(e),true); });
       WMAuth.session().then(s=>{
+        /* null now means one thing only: this device is signed out. A check
+           that could not be made raises instead, and lands in .catch below. */
         if(!s){ WMAuth.forget(); location.reload(); return; }        // really signed out
         if(!s.allowed){ session=s; cloudMode('denied'); return; }    // access withdrawn
         session=s;                                                   // refresh name and role quietly
         document.getElementById('lockBtn').title='Sign out ('+(s.login||s.email)+')';
-      }).catch(()=>{});                        // offline or slow: stay where we are
+      }).catch(e=>{                            // offline, slow, or rate limited:
+        console.warn('session not confirmed, staying signed in:', e && e.message || e);
+      });                                      // ...stay in the dashboard
       return;
     }
     await cloudEnter(await WMAuth.session());
@@ -2861,6 +2865,6 @@ function drawTrendChart(){
 })();
 
 </script>
-<script src="insights-ui.js?v=20260919b"></script>
+<script src="insights-ui.js?v=20261005a"></script>
 </body>
 </html>

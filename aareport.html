@@ -277,8 +277,8 @@ table.stats td:first-child{text-align:left;font-weight:600}
 </div></div>
 </div>
 
-<script src="auth.js?v=20260919b"></script>
-<script src="usage.js?v=20260919b"></script>
+<script src="auth.js?v=20261005a"></script>
+<script src="usage.js?v=20261005a"></script>
 <script>
 /* ============================================================
    Per-meter Monitoring page
@@ -687,7 +687,10 @@ async function loadMeter(){
        only a definite "signed out" or "access withdrawn" turns it away */
     let s = typeof WMAuth.cached==='function' ? WMAuth.cached() : null;
     if(s && s.allowed){
-      WMAuth.session().then(v=>{ if(!v || !v.allowed){ if(!v) WMAuth.forget(); location.reload(); } }).catch(()=>{});
+      /* null means signed out, and only that - a check that could not be made
+         raises instead, and then this page stays open. */
+      WMAuth.session().then(v=>{ if(!v || !v.allowed){ if(!v) WMAuth.forget(); location.reload(); } })
+        .catch(e=>{ console.warn('session not confirmed, staying signed in:', e && e.message || e); });
     }else{
       s=null; try{ s=await WMAuth.session(); }catch(e){}
     }

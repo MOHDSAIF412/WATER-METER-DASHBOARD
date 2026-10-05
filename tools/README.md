@@ -39,3 +39,36 @@ create an account in the project. They cannot see the dashboard — they land on
 "No access yet", because access is granted only by an administrator — but there is
 no reason to let strangers make accounts at all. Turning it off does **not** affect
 adding staff from the Users screen: that runs on the server with its own key.
+
+## A second pinger, already running inside the database
+
+Set up 2026-10-05, so the login is not left depending on one thing.
+
+The database itself now asks its own public API one harmless question every day
+at 10:23 Dubai time, using `pg_cron` and `pg_net`. Nothing to install and nothing
+to maintain — it lives in the migration `wm_keep_login_awake`:
+
+- `public.wm_ping_self()` makes the request. It is `security definer`, and
+  `execute` is revoked from `anon` and `authenticated`, so nothing on the
+  website can call it. Proved: `/rest/v1/rpc/wm_ping_self` answers 401.
+- `public.wm_keepalive` records one row per ping, so there is evidence it ran.
+  Row level security is on with no policy, so the website cannot read it.
+  Proved: `/rest/v1/wm_keepalive` answers with nothing at all.
+
+To see that it is working:
+
+```sql
+select k.at, r.status_code
+from public.wm_keepalive k
+left join net._http_response r on r.id = k.request_id
+order by k.at desc limit 7;
+```
+
+Expect one row per day with `status_code` 200. The first ping returned 200.
+
+**This is a backup, not a replacement for the GitHub job above.** The request
+reaches the API gateway from outside the database, so it should count as use,
+but that cannot be proven without letting a week pass — whereas the GitHub job
+is known to work and tells you in the Actions tab when it does not. Keep both.
+
+To remove it: `select cron.unschedule('wm-keep-login-awake');`

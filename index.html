@@ -2297,8 +2297,24 @@ async function cloudStart(){
       lkSay('Checking your session took too long. Sign in again, or reload the page.', true); }
   }, 15000);
   try{
+    /* arriving from an email link the login service refused - most often one
+       that expired, was already used, or was opened first by a mail scanner.
+       Say so and offer a fresh link, instead of a sign-in screen that leaves
+       the person guessing why the link "did nothing".                       */
+    const linkErr = new URLSearchParams(location.hash.slice(1)).get('error_code')
+                 || new URLSearchParams(location.search).get('error_code');
+    if(linkErr){
+      clearTimeout(backstop);
+      history.replaceState(null,'',location.pathname);
+      cloudMode('reset');
+      lkSay(linkErr==='otp_expired'
+        ? 'That reset link has expired or was already used. Links work once and only for a short time - enter your email to get a new one.'
+        : 'That reset link did not work. Enter your email to get a new one.', true);
+      return;
+    }
     /* arriving from a "forgot password" email: let them choose a new one */
     if(/type=recovery/.test(location.hash) || /type=recovery/.test(location.search)){
+      clearTimeout(backstop);
       try{ await WMAuth.session(); }catch(e){}
       cloudMode('newpw'); return;
     }
